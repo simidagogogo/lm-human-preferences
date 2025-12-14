@@ -10,7 +10,22 @@ class TrainedModel():
     def __init__(self, name, *, savedir=None, scope=None):
         self.name = name
         self.scope = scope
-        self.savedir = savedir if savedir else os.path.join('gs://gpt-2/models/', name)
+        
+        if savedir is None:
+            # 优先使用本地路径（如果设置了环境变量或文件存在）
+            local_base = os.environ.get('GPT2_MODEL_PATH', os.path.expanduser('~/gpt-2-models'))
+            local_model_path = os.path.join(local_base, 'models', name)
+            
+            # 检查本地路径是否存在（检查 hparams.json 或 checkpoint）
+            if os.path.exists(os.path.join(local_model_path, 'hparams.json')) or \
+               os.path.exists(os.path.join(local_model_path, 'checkpoint')):
+                self.savedir = local_model_path
+            else:
+                # 回退到 GCS 路径
+                self.savedir = os.path.join('gs://gpt-2/models/', name)
+        else:
+            self.savedir = savedir
+            
         if name == 'test':
             self.encoding = encodings.Test
         else:

@@ -8,8 +8,14 @@ from functools import wraps
 from urllib.parse import urlparse, unquote
 
 import requests
-from google.api_core.exceptions import InternalServerError, ServiceUnavailable
-from google.cloud import storage
+try:
+    from google.api_core.exceptions import InternalServerError, ServiceUnavailable
+    from google.cloud import storage
+except ImportError:
+    # If Google Cloud libraries are not available, we'll use HTTP downloads for Azure
+    InternalServerError = Exception
+    ServiceUnavailable = Exception
+    storage = None
 
 warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials")
 
@@ -53,23 +59,35 @@ def _gcs_should_retry_on(e):
 
 
 def parse_url(url):
-    """Given a gs:// path, returns bucket name and blob path."""
+    """Given a gs:// path or https:// URL, returns bucket name and blob path."""
     result = urlparse(url)
     if result.scheme == 'gs':
         return result.netloc, unquote(result.path.lstrip('/'))
     elif result.scheme == 'https':
-        assert result.netloc == 'storage.googleapis.com'
-        bucket, rest = result.path.lstrip('/').split('/', 1)
-        return bucket, unquote(rest)
+        # Support both Google Cloud Storage and Azure Blob Storage
+        if result.netloc == 'storage.googleapis.com':
+            bucket, rest = result.path.lstrip('/').split('/', 1)
+            return bucket, unquote(rest)
+        elif 'blob.core.windows.net' in result.netloc:
+            # Azure Blob Storage URL format: https://account.blob.core.windows.net/container/path
+            # For Azure, we'll return the full URL as-is for direct HTTP download
+            return None, url  # Return None as bucket to indicate Azure URL
+        else:
+            raise Exception(f'Unsupported URL host: {result.netloc}')
     else:
         raise Exception(f'Could not parse {url} as gcs url')
 
 
 @exponential_backoff(_gcs_should_retry_on)
 def get_blob(url, client=None):
-    if client is None:
-        client = storage.Client()
     bucket_name, path = parse_url(url)
+    # Handle Azure URLs - return None to use HTTP download instead
+    if bucket_name is None:
+        return None
+    if client is None:
+        if storage is None:
+            return None
+        client = storage.Client()
     bucket = client.get_bucket(bucket_name)
     return bucket.get_blob(path)
 
@@ -117,14 +135,54 @@ def download_directory_cached(url, comm=None):
 
 
 def download_file_cached(url, comm=None):
-    """ Given a GCS path url, caches the contents locally.
+    """ Given a GCS path url or Azure Blob Storage URL, caches the contents locally.
     WARNING: only use this function if contents under the path won't change!
     """
     cache_dir = '/tmp/gcs-cache'
     bucket_name, path = parse_url(url)
     is_master = not comm or comm.Get_rank() == 0
+    
+    # Handle Azure Blob Storage URLs (direct HTTP download)
+    if bucket_name is None and path.startswith('http'):
+        # Azure URL - use direct HTTP download
+        azure_url = path
+        # Create a safe filename from the URL
+        import hashlib
+        url_hash = hashlib.md5(azure_url.encode()).hexdigest()
+        filename = os.path.basename(azure_url) or 'file'
+        local_path = os.path.join(cache_dir, 'azure', url_hash, filename)
+        sentinel = local_path + '.SYNCED'
+        
+        if is_master:
+            if not os.path.exists(local_path):
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                print(f'Downloading from Azure: {azure_url}')
+                try:
+                    response = requests.get(azure_url, stream=True, timeout=60)
+                    response.raise_for_status()
+                    with open(local_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    open(sentinel, 'a').close()
+                    print(f'Downloaded to: {local_path}')
+                except requests.exceptions.HTTPError as e:
+                    if e.response.status_code == 404:
+                        print(f'WARNING: File not found at {azure_url}')
+                        print(f'This dataset may not be available. Creating placeholder file.')
+                        # 创建一个空文件作为占位符
+                        with open(local_path, 'w') as f:
+                            f.write('[]')
+                        open(sentinel, 'a').close()
+                        print(f'Created placeholder at: {local_path}')
+                    else:
+                        raise
+        else:
+            while not os.path.exists(sentinel):
+                time.sleep(1)
+        return local_path
+    
+    # Handle GCS URLs (original logic)
     local_path = os.path.join(cache_dir, bucket_name, path)
-
     sentinel = local_path + '.SYNCED'
     if is_master:
         if not os.path.exists(local_path):

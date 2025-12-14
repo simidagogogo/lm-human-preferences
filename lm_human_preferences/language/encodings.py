@@ -135,7 +135,16 @@ class Encoding:
         self.n_vocab = n_vocab
 
         if base_path is None:
-            base_path = os.path.join("gs://gpt-2/encodings", name)
+            # 优先使用本地路径（如果设置了环境变量或文件存在）
+            local_base = os.environ.get('GPT2_MODEL_PATH', os.path.expanduser('~/gpt-2-models'))
+            local_encoding_path = os.path.join(local_base, 'encodings', name)
+            
+            # 检查本地路径是否存在
+            if os.path.exists(os.path.join(local_encoding_path, encoder_path)):
+                base_path = local_encoding_path
+            else:
+                # 回退到 GCS 路径
+                base_path = os.path.join("gs://gpt-2/encodings", name)
 
         self.base_path = base_path
         if name != "test":

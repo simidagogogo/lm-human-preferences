@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 
+# Try to import mpi4py, if it fails, use our mock
+try:
+    import mpi4py
+except ImportError:
+    import sys
+    import os
+    # Add current directory to path and import mock
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import mpi_mock
+    sys.modules['mpi4py'] = mpi_mock
+    sys.modules['mpi4py.MPI'] = mpi_mock.MPI
+
 from lm_human_preferences.utils import launch
 from lm_human_preferences.utils.combos import bind, combos, each, label, options_shortdesc, bind_nested
 from lm_human_preferences import train_policy, train_reward

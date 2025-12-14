@@ -11,7 +11,14 @@ def launch(name, f, *, namespace='safety', mode='local', mpi=1) -> None:
         with open('/tmp/pickle_fn', 'wb') as file:
             cloudpickle.dump(f, file)
 
-        subprocess.check_call(['mpiexec', '-n', str(mpi), 'python', '-c', 'import sys; import pickle; pickle.loads(open("/tmp/pickle_fn", "rb").read())()'])
+        # If mpi=1, run directly without mpiexec (for systems without MPI installed)
+        if mpi == 1:
+            import pickle
+            with open('/tmp/pickle_fn', 'rb') as file:
+                fn = pickle.loads(file.read())
+            fn()
+        else:
+            subprocess.check_call(['mpiexec', '-n', str(mpi), 'python', '-c', 'import sys; import pickle; pickle.loads(open("/tmp/pickle_fn", "rb").read())()'])
         return
     raise Exception('Other modes unimplemented!')
 
