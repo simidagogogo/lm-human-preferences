@@ -33,6 +33,13 @@ class MPIComm:
         # For single process, allreduce just returns the data as-is
         # since there's nothing to reduce across processes
         return data
+    
+    def bcast(self, data, root=0):
+        """Broadcast data from root process to all processes.
+        For single process, just return the data as-is."""
+        # In single process mode, bcast just returns the data
+        # since there's only one process (rank 0)
+        return data
 
 class MPIOp:
     """Mock MPI operation."""
