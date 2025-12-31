@@ -8,8 +8,10 @@ from typing import Optional
 
 import numpy as np
 import tensorflow as tf
+# Enable TensorFlow 1.x compatibility mode
+tf.compat.v1.disable_v2_behavior()
 from mpi4py import MPI
-from tensorflow.contrib import summary
+from tensorflow.compat.v1 import summary
 
 from lm_human_preferences import label_types, lm_tasks, rewards
 from lm_human_preferences.language import trained_models
@@ -297,11 +299,11 @@ def train(hparams: HParams):
 
             if not save_dir.startswith('gs://'):
                 os.makedirs(os.path.join(save_dir, 'reward_model'), exist_ok=True)
-            with tf.gfile.Open(os.path.join(save_dir, 'train_reward_hparams.json'), 'w') as f:
+            with tf.io.gfile.GFile(os.path.join(save_dir, 'train_reward_hparams.json'), 'w') as f:
                 json.dump(hparams.to_nested_dict(), f, indent=2)
-            with tf.gfile.Open(os.path.join(save_dir, 'reward_model', 'hparams.json'), 'w') as f:
+            with tf.io.gfile.GFile(os.path.join(save_dir, 'reward_model', 'hparams.json'), 'w') as f:
                 json.dump(reward_model.hparams.to_nested_dict(), f, indent=2)
-            with tf.gfile.Open(os.path.join(save_dir, 'reward_model', 'encoding'), 'w') as f:
+            with tf.io.gfile.GFile(os.path.join(save_dir, 'reward_model', 'encoding'), 'w') as f:
                 json.dump(reward_model.trained_model.encoding.name, f, indent=2)
         else:
             saver = None

@@ -124,7 +124,7 @@ class HParams:
         assert is_dataclass(self), f"You forgot to annotate {type(self)} with @dataclass"
         for f in fields(self):
             fieldval = getattr(self, f.name)
-            check_type(prefix + f.name, fieldval, f.type)
+            check_type(fieldval, f.type)
             if isinstance(fieldval, HParams):
                 fieldval.validate(prefix=prefix + f.name + '.')
 

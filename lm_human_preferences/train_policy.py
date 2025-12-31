@@ -10,8 +10,10 @@ from typing import Optional
 
 import numpy as np
 import tensorflow as tf
+# Enable TensorFlow 1.x compatibility mode
+tf.compat.v1.disable_v2_behavior()
 from mpi4py import MPI
-from tensorflow.contrib import summary
+from tensorflow.compat.v1 import summary
 
 from lm_human_preferences import lm_tasks, train_reward
 from lm_human_preferences.language import trained_models
@@ -428,11 +430,11 @@ def train(hparams: HParams):
         if save_dir:
             if not save_dir.startswith('https:'):
                 os.makedirs(os.path.join(save_dir, 'policy'), exist_ok=True)
-            with tf.gfile.Open(os.path.join(save_dir, 'train_policy_hparams.json'), 'w') as f:
+            with tf.io.gfile.GFile(os.path.join(save_dir, 'train_policy_hparams.json'), 'w') as f:
                 json.dump(hparams.to_nested_dict(), f, indent=2)
-            with tf.gfile.Open(os.path.join(save_dir, 'policy', 'hparams.json'), 'w') as f:
+            with tf.io.gfile.GFile(os.path.join(save_dir, 'policy', 'hparams.json'), 'w') as f:
                 json.dump(m.hparams().to_nested_dict(), f, indent=2)
-            with tf.gfile.Open(os.path.join(save_dir, 'policy', 'encoding'), 'w') as f:
+            with tf.io.gfile.GFile(os.path.join(save_dir, 'policy', 'encoding'), 'w') as f:
                 json.dump(m.encoding.name, f, indent=2)
         utils.set_mpi_seed(hparams.run.seed)
 

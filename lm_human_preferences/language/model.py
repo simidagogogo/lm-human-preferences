@@ -253,7 +253,7 @@ def fc_layer(x, outshape, *, in_axes=1, scale=None):
     w = tf.get_variable('w', inshape + outshape, initializer=tf.random_normal_initializer(stddev=scale))
     b = tf.get_variable('b', outshape, initializer=tf.constant_initializer(0))
     # Call the regularizer manually so that it works correctly with GradientTape
-    regularizer = tf.contrib.layers.l2_regularizer(scale=1/np.prod(outshape)) #so that initial value of regularizer is 1
+    regularizer = tf.keras.regularizers.l2(l=1/np.prod(outshape)) #so that initial value of regularizer is 1
     reg_loss = regularizer(w)
     return tensordot(x, w, in_axes) + b, reg_loss
 

@@ -115,7 +115,7 @@ class ReversibleEncoder:
 
 
 def read_file(path):
-    with tf.gfile.Open(path, "rb") as fh:
+    with tf.io.gfile.GFile(path, "rb") as fh:
         return fh.read()
 
 

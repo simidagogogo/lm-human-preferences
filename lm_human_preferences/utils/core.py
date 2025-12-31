@@ -13,8 +13,10 @@ from typing import Any, Dict, Tuple, Optional
 
 import numpy as np
 import tensorflow as tf
+# Enable TensorFlow 1.x compatibility mode
+tf.compat.v1.disable_v2_behavior()
 from mpi4py import MPI
-from tensorflow.contrib import summary
+from tensorflow.compat.v1 import summary
 
 try:
     import horovod.tensorflow as hvd
@@ -23,7 +25,7 @@ except:
     hvd = None
 
 
-nest = tf.contrib.framework.nest
+nest = tf.nest
 
 
 def nvidia_gpu_count():
@@ -110,12 +112,12 @@ def set_mpi_seed(seed: Optional[int]):
         rank = MPI.COMM_WORLD.Get_rank()
         seed = seed + rank * 100003  # Prime (kept for backwards compatibility even though it does nothing)
     np.random.seed(seed)
-    tf.set_random_seed(seed)
+    tf.compat.v1.set_random_seed(seed)
 
 
 def exact_div(a, b):
     q = a // b
-    if tf.contrib.framework.is_tensor(q):
+    if tf.is_tensor(q):
         with tf.control_dependencies([tf.debugging.Assert(tf.equal(a, q * b), [a, b])]):
             return tf.identity(q)
     else:
@@ -457,7 +459,7 @@ def variable_synchronizer(comm, vars, *, limit=1<<28):
 def mpi_read_file(comm, path):
     """Read a file on rank 0 and broadcast the contents to all machines."""
     if comm.Get_rank() == 0:
-        with tf.gfile.Open(path, 'rb') as fh:
+        with tf.io.gfile.GFile(path, 'rb') as fh:
             data = fh.read()
         comm.bcast(data)
     else:

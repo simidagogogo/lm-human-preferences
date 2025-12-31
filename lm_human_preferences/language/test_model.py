@@ -19,7 +19,7 @@ def test_incremental():
     batch_size = 2
     steps = 5
     np.random.seed(7)
-    tf.set_random_seed(7)
+    tf.compat.v1.set_random_seed(7)
 
     # Transformer model
     m = model.Model(hparams=hparams)
@@ -47,7 +47,7 @@ def test_incremental():
 
 def test_mask():
     np.random.seed(7)
-    tf.set_random_seed(7)
+    tf.compat.v1.set_random_seed(7)
 
     # Make a transformer
     hparams = model.HParams()

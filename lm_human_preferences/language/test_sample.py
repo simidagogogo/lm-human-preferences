@@ -3,7 +3,7 @@
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.training import HParams
+from lm_human_preferences.utils.hyperparams import HParams
 
 from lm_human_preferences.language import sample
 
