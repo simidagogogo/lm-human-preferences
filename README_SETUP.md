@@ -76,3 +76,90 @@ pipenv run ./sample.py sample --save_dir $save_dir --savescope policy --mpi 1
 ```bash
 pipenv run python download_gpt2.py
 ```
+
+
+```
+(py37) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences# sh run.sh 
+hparams:
+  batch_size: 32
+  debug_normalize: 0
+  labels:
+    num_train: 4992
+    source: https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json
+    type: best_of_4
+  lr: 5e-05
+  normalize_after: True
+  normalize_before: True
+  normalize_samples: 256
+  rollout_batch_size: 512
+  run:
+    log_interval: 10
+    save_dir: /tmp/save/train_reward/testdesc-2512311701
+    save_interval: 50
+    seed: 1
+  task:
+    end_text: .
+    penalty_reward_value: -1
+    policy:
+      initial_model: 124M
+      temperature: 0.7
+    query_dataset: books
+    query_length: 64
+    query_prefix: 
+    query_suffix: 
+    response_length: 24
+    start_text: .
+    truncate_after: 16
+    truncate_token: 13
+model_hparams:
+  attn_pdrop: 0.1
+  embd_pdrop: 0.1
+  head_pdrop: 0.1
+  n_ctx: 1024
+  n_embd: 768
+  n_head: 12
+  n_layer: 12
+  n_vocab: 50257
+  resid_pdrop: 0.1
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/framework/op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Colocations handled automatically by placer.
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/framework/function.py:1007: calling Graph.create_op (from tensorflow.python.framework.ops) with compute_shapes is deprecated and will be removed in a future version.
+Instructions for updating:
+Shapes are always computed; don't use the compute_shapes as it has no effect.
+Param ref_policy/model/heads/value/w is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+Param ref_policy/model/heads/value/b is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+Param reward_model/model/heads/reward/w is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+Param reward_model/model/heads/reward/b is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+Param reward_model/reward_norm/gain is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+Param reward_model/reward_norm/bias is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/data/ops/dataset_ops.py:429: py_func (from tensorflow.python.ops.script_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+tf.py_func is deprecated in TF V2. Instead, use
+    tf.py_function, which takes a python function which manipulates tf eager
+    tensors instead of numpy arrays. It's easy to convert a tf eager tensor to
+    an ndarray (just call tensor.numpy()) but having access to eager tensors
+    means `tf.py_function`s can use accelerators such as GPUs as well as
+    being differentiable using a gradient tape.
+    
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/ops/math_ops.py:3066: to_int32 (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Use tf.cast instead.
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/ops/math_grad.py:102: div (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Deprecated in favor of operator or tf.math.divide.
+Will save to /tmp/save/train_reward/testdesc-2512311701
+2025-12-31 17:02:33.563800: I tensorflow/core/platform/cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 AVX512F FMA
+2025-12-31 17:02:33.587749: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 2699995000 Hz
+2025-12-31 17:02:33.588162: I tensorflow/compiler/xla/service/service.cc:150] XLA service 0x3f25f850 executing computations on platform Host. Devices:
+2025-12-31 17:02:33.588256: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (0): <undefined>, <undefined>
+Num labels found in source: 6260
+WARNING: Dataset file appears to be empty or placeholder. Using test data generator.
+2025-12-31 17:05:01.706157: W tensorflow/core/framework/allocator.cc:124] Allocation of 2415919104 exceeds 10% of system memory.
+2025-12-31 17:05:12.911765: W tensorflow/core/framework/allocator.cc:124] Allocation of 6587285504 exceeds 10% of system memory.
+2025-12-31 17:06:00.088480: W tensorflow/core/framework/allocator.cc:124] Allocation of 2453667840 exceeds 10% of system memory.
+2025-12-31 17:06:06.735208: W tensorflow/core/framework/allocator.cc:124] Allocation of 2491416576 exceeds 10% of system memory.
+2025-12-31 17:06:13.486140: W tensorflow/core/framework/allocator.cc:124] Allocation of 2529165312 exceeds 10% of system memory.gi
+
+这说明了什么？
+```
