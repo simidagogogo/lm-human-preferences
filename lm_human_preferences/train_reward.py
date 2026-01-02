@@ -21,9 +21,9 @@ from lm_human_preferences.utils.core import Schema
 
 @dataclass
 class LabelHParams(hyperparams.HParams):
-    type: str = None
-    num_train: int = None
-    source: str = None
+    type: str = None        # best_of_4
+    num_train: int = None   # 样本条数
+    source: str = None      # 数据源
 
 
 @dataclass
@@ -36,19 +36,19 @@ class RunHParams(hyperparams.HParams):
 @dataclass
 class HParams(hyperparams.HParams):
     run: RunHParams = field(default_factory=RunHParams)
-
     task: lm_tasks.TaskHParams = field(default_factory=lm_tasks.TaskHParams)
     labels: LabelHParams = field(default_factory=LabelHParams)
 
-    batch_size: int = 40  # total across ranks
+    batch_size: int = 40            # total across ranks
     lr: float = 5e-5
-
     rollout_batch_size: int = 64
-    normalize_samples: int = 0  # Samples used to estimate reward mean and std
-    debug_normalize: int = 0  # Samples used to check that normalization worked
+    normalize_samples: int = 0      # Samples used to estimate reward mean and std
+    debug_normalize: int = 0        # Samples used to check that normalization worked
+    
     # Whether, before training, to normalize the rewards on the policy to the scales on the training buffer.
     # (For comparisons, just use mean 0, var 1.)
     normalize_before: bool = False
+    
     # Whether, after training, to normalize the rewards on the ref policy to mean 0, var 1
     # (so the KL coefficient always has the same meaning).
     normalize_after: bool = False
@@ -56,6 +56,7 @@ class HParams(hyperparams.HParams):
     def validate(self, *, prefix=''):
         super().validate(prefix=prefix)
         utils.exact_div(self.labels.num_train, self.batch_size)
+
 
 def round_down_to_multiple(n, divisor):
     return n - n % divisor
@@ -254,8 +255,10 @@ class RewardModelTrainer():
             self.normalize(self.sample_policy_responses, target_mean, target_std)
 
 
-
 def train(hparams: HParams):
+    """
+    这是训练reward模型的入口
+    """
     with tf.Graph().as_default():
         hyperparams.dump(hparams)
         utils.set_mpi_seed(hparams.run.seed)

@@ -3,15 +3,17 @@ import sys
 import typing
 from dataclasses import fields, is_dataclass
 from functools import lru_cache
-
 from typeguard import check_type
-
 from lm_human_preferences.utils import gcs
 
 
 class HParams:
-    """Used as a base class for hyperparameter structs. They also need to be annotated with @dataclass."""
-
+    """
+    Used as a base class for hyperparameter structs. They also need to be annotated with @dataclass.
+    """
+    def parse_json(self, s: str):
+        self.override_from_nested_dict(json.loads(s))
+        
     def override_from_json_file(self, filename):
         if filename.startswith('gs://'):
             hparams_str = gcs.download_contents(filename)
@@ -20,8 +22,8 @@ class HParams:
         self.parse_json(hparams_str)
 
     def override_from_str(self, hparam_str):
-        """Overrides values from a string like 'x.y=1,name=foobar'.
-
+        """
+        Overrides values from a string like 'x.y=1,name=foobar'.
         Like tensorflow.contrib.training.HParams, this method does not allow specifying string values containing commas.
         """
         kvp_strs = hparam_str.split(',')
@@ -31,37 +33,30 @@ class HParams:
             if not sep:
                 raise ValueError(f"Malformed hyperparameter value: '{kvp_str}'")
             flat_dict[k] = v
-
         self.override_from_str_dict(flat_dict)
 
     def override_from_str_dict(self, flat_dict, separator='.'):
-        """Overrides values from a dict like {'x.y': "1", 'name': "foobar"}.
-
+        """
+        Overrides values from a dict like {'x.y': "1", 'name': "foobar"}.
         Treats keys with dots as paths into nested HParams.
         Parses values according to the types in the HParams classes.
         """
         typemap = _type_map(type(self), separator=separator)
-
         parsed = {}
         for flat_k, s in flat_dict.items():
             if flat_k not in typemap:
                 raise AttributeError(f"no field {flat_k} in {typemap}")
             parsed[flat_k] = _parse_typed_value(typemap[flat_k], s)
-
         self.override_from_dict(parsed, separator=separator)
 
-    def parse_json(self, s: str):
-        self.override_from_nested_dict(json.loads(s))
-
     def override_from_dict(self, flat_dict, separator='.'):
-        """Overrides values from a dict like {'x.y': 1, 'name': "foobar"}.
-
+        """
+        Overrides values from a dict like {'x.y': 1, 'name': "foobar"}.
         Treats keys with dots as paths into nested HParams.
         Values should be parsed already.
         """
         # Parse 'on' and 'off' values.
         typemap = _type_map(type(self), separator=separator)
-
         flat_dict_parsed = {}
         for flat_k, v in flat_dict.items():
             cls = _type_to_class(typemap[flat_k])
@@ -135,6 +130,9 @@ class HParams:
 
 
 def is_hparam_type(ty):
+    """
+    判断一个类型是否为超参数类型(即HParams的子类且为dataclass)
+    """
     if isinstance(ty, type) and issubclass(ty, HParams):
         assert is_dataclass(ty)
         return True
@@ -143,24 +141,35 @@ def is_hparam_type(ty):
 
 
 def _is_union_type(ty):
+    """
+    判断一个类型是否为typing.Union的快速方法
+    """
     return getattr(ty, '__origin__', None) is typing.Union
 
 
 def dump(hparams, *, name='hparams', out=sys.stdout):
+    """
+    保存超参数, 默认输出到stdout
+    """
+    out.write('==========================\n')
     out.write('%s:\n' % name)
     def dump_nested(hp, indent):
         for f in sorted(fields(hp), key=lambda f: f.name):
             v = getattr(hp, f.name)
             if isinstance(v, HParams):
                 out.write('%s%s:\n' % (indent, f.name))
-                dump_nested(v, indent=indent+'  ')
+                dump_nested(v, indent=indent+'    ')
             else:
                 out.write('%s%s: %s\n' % (indent, f.name, v))
-    dump_nested(hparams, indent='  ')
+    dump_nested(hparams, indent='    ')
+    out.write('==========================\n')
 
 
 def _can_distinguish_unambiguously(type_set):
-    """Whether it's always possible to tell which type in type_set a certain value is supposed to be"""
+    """
+    Whether it's always possible to tell which type in type_set a certain value is supposed to be
+    根据一组类型(type_set), 判断能否“总能无二义性地”确定一个实际值属于哪种类型
+    """
     if len(type_set) == 1:
         return True
     if type(None) in type_set:
@@ -226,7 +235,10 @@ def _update_disjoint(dst: dict, src: dict):
 
 @lru_cache()
 def _type_map(ty, separator):
-    typemap = {}
+    """
+    用于递归提取dataclass(及其嵌套)的字段类型映射表的工具函数
+    """
+    typemap = {} # name->type
     for f in fields(ty):
         typemap[f.name] = f.type
         if is_hparam_type(f.type):
@@ -243,7 +255,9 @@ def _type_map(ty, separator):
 
 
 def _type_to_class(ty):
-    """Extract a constructible class from a type. For instance, `typing.Optional[int]` gives `int`"""
+    """
+    Extract a constructible class from a type. For instance, `typing.Optional[int]` gives `int`
+    """
     if _is_union_type(ty):
         # Only typing.Optional supported: must be of form typing.Union[ty, None]
         assert len(ty.__args__) == 2
@@ -251,4 +265,3 @@ def _type_to_class(ty):
         return ty.__args__[0]
     else:
         return ty
-

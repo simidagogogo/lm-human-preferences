@@ -1,8 +1,6 @@
 import copy
 import os
-
 import tensorflow as tf
-
 from lm_human_preferences.language import encodings, model
 
 

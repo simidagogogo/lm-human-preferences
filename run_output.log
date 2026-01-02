@@ -1,4 +1,3 @@
-nohup: ignoring input
 WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/framework/op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
 Instructions for updating:
 Colocations handled automatically by placer.
@@ -20,12 +19,14 @@ Use tf.cast instead.
 WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/ops/math_grad.py:102: div (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.
 Instructions for updating:
 Deprecated in favor of operator or tf.math.divide.
-2025-12-31 17:17:22.866657: I tensorflow/core/platform/cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 AVX512F FMA
-2025-12-31 17:17:22.887688: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 2699995000 Hz
-2025-12-31 17:17:22.888028: I tensorflow/compiler/xla/service/service.cc:150] XLA service 0x29090dc0 executing computations on platform Host. Devices:
-2025-12-31 17:17:22.888055: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (0): <undefined>, <undefined>
-2025-12-31 17:18:46.769193: W tensorflow/core/framework/allocator.cc:124] Allocation of 6587285504 exceeds 10% of system memory.
-2025-12-31 17:20:29.362030: W tensorflow/core/framework/allocator.cc:124] Allocation of 3133145088 exceeds 10% of system memory.
-2025-12-31 17:20:33.957427: W tensorflow/core/framework/allocator.cc:124] Allocation of 3170893824 exceeds 10% of system memory.
-2025-12-31 17:20:38.472446: W tensorflow/core/framework/allocator.cc:124] Allocation of 3208642560 exceeds 10% of system memory.
-2025-12-31 17:20:43.064692: W tensorflow/core/framework/allocator.cc:124] Allocation of 3246391296 exceeds 10% of system memory.
+2026-01-01 00:34:26.445863: I tensorflow/core/platform/cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 AVX512F FMA
+2026-01-01 00:34:26.479717: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 2699995000 Hz
+2026-01-01 00:34:26.480076: I tensorflow/compiler/xla/service/service.cc:150] XLA service 0x39988740 executing computations on platform Host. Devices:
+2026-01-01 00:34:26.480110: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (0): <undefined>, <undefined>
+2026-01-01 00:34:55.548389: W tensorflow/core/framework/allocator.cc:124] Allocation of 301989888 exceeds 10% of system memory.
+22026-01-01 00:35:04.286837: W tensorflow/core/framework/allocator.cc:124] Allocation of 6587285504 exceeds 10% of system memory.
+26-01-01 00:35:01.777406: W tensorflow/core/framework/allocator.cc:124] Allocation of 402653184 exceeds 10% of system memory.
+2026-01-01 00:35:06.049963: W tensorflow/core/framework/allocator.cc:124] Allocation of 402653184 exceeds 10% of system memory.
+2026-01-01 00:35:06.049984: W tensorflow/core/framework/allocator.cc:124] Allocation of 402653184 exceeds 10% of system memory.
+7: W tensorflow/core/framework/allocator.cc:124] Allocation of 2491416576 exceeds 10% of system memory.
+2026-01-01 00:33:57.961267: W tensorflow/core/framework/allocator.cc:124] Allocation of 2529165312 exceeds 10% of system memory.
