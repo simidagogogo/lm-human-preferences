@@ -1,10 +1,14 @@
-"""Interface and implementations of label types for a reward model."""
+"""
+Interface and implementations of label types for a reward model.
+
+这段代码定义了奖励模型(reward model)标注类型的接口与三种具体实现(PickBest, ScalarRating, ScalarComparison)
+用于人类偏好学习RLHF流程中各种类型的“人类评价标注”场景
+兼顾模型训练的输入输出和损失计算
+"""
 
 from abc import ABC, abstractmethod
 from typing import Optional, Dict
-
 import tensorflow as tf
-
 from lm_human_preferences.utils.core import Schema, pearson_r
 
 

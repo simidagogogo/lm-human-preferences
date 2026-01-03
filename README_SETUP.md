@@ -189,3 +189,74 @@ k =  loss , v =  0.9600097
 k =  error , v =  1.0529504
 k =  loss , v =  1.0529504
 ```
+
+
+```bash
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences# tree /tmp/save/
+/tmp/save/
+└── train_reward
+    └── testdesc-2601031229
+        ├── reward_model
+        │   ├── encoding
+        │   └── hparams.json
+        ├── tb
+        │   └── reward_model
+        │       └── events.out.tfevents.1767414594.iZ0jlfyn5du7ptefx2tr5vZ.v2
+        └── train_reward_hparams.json
+```
+
+
+```
+"main"(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences# cat /tmp/save/train_reward/testdesc-2601031229/reward_model/hparams.json 
+{
+  "n_vocab": 50257,
+  "n_ctx": 1024,
+  "n_embd": 768,
+  "n_head": 12,
+  "n_layer": 12,
+  "embd_pdrop": 0.1,
+  "attn_pdrop": 0.1,
+  "resid_pdrop": 0.1,
+  "head_pdrop": 0.1
+}
+
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences# cat /tmp/save/train_reward/testdesc-2601031229/reward_model/encoding 
+"main"
+
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences# cat /tmp/save/train_reward/testdesc-2601031229/train_reward_hparams.json 
+{
+  "run": {
+    "seed": 1,
+    "log_interval": 10,
+    "save_interval": 50,
+    "save_dir": "/tmp/save/train_reward/testdesc-2601031229"
+  },
+  "task": {
+    "query_length": 64,
+    "query_dataset": "books",
+    "query_prefix": "",
+    "query_suffix": "",
+    "start_text": ".",
+    "end_text": ".",
+    "response_length": 24,
+    "truncate_token": 13,
+    "truncate_after": 16,
+    "penalty_reward_value": -1,
+    "policy": {
+      "temperature": 0.7,
+      "initial_model": "124M"
+    }
+  },
+  "labels": {
+    "type": "best_of_4",
+    "num_train": 4992,
+    "source": "https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json"
+  },
+  "batch_size": 32,
+  "lr": 5e-05,
+  "rollout_batch_size": 512,
+  "normalize_samples": 256,
+  "debug_normalize": 0,
+  "normalize_before": true,
+  "normalize_after": true
+```

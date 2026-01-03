@@ -33,6 +33,7 @@ class RunHParams(hyperparams.HParams):
     save_interval: int = 50
     save_dir: Optional[str] = None
 
+
 @dataclass
 class HParams(hyperparams.HParams):
     run: RunHParams = field(default_factory=RunHParams)
@@ -100,7 +101,6 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
 class RewardModelTrainer():
     def __init__(self, *, reward_model, policy, query_sampler, hparams, comm):
         self.reward_model = reward_model
-
         self.policy = policy
         self.hparams = hparams
         self.num_ranks = comm.Get_size()
@@ -265,25 +265,41 @@ def train(hparams: HParams):
 
         m = trained_models.TrainedModel(hparams.task.policy.initial_model)
         encoder = m.encoding.get_encoder()
+        
+        """
+        model_hparams:
+            attn_pdrop: 0.1
+            embd_pdrop: 0.1
+            head_pdrop: 0.1
+            n_ctx: 1024
+            n_embd: 768
+            n_head: 12
+            n_layer: 12
+            n_vocab: 50257
+            resid_pdrop: 0.1
+        """
         hyperparams.dump(m.hparams(), name='model_hparams')
 
         comm = MPI.COMM_WORLD
         ref_policy = Policy(
-            m, scope='ref_policy',
+            m, 
+            scope='ref_policy',
             is_root=comm.Get_rank() == 0,
             embed_queries=lm_tasks.query_formatter(hparams.task, encoder),
             temperature=hparams.task.policy.temperature,
-            build_respond=False)
+            build_respond=False
+        )
 
         reward_model = rewards.RewardModelTrainer(m, is_root=comm.Get_rank() == 0)
-
+        
         query_sampler = lm_tasks.make_query_sampler(
-            hparams=hparams.task, encoder=encoder, comm=comm,
+            hparams=hparams.task, 
+            encoder=encoder, 
+            comm=comm,
             batch_size=utils.exact_div(hparams.rollout_batch_size, comm.Get_size())
         )
 
         tf.train.create_global_step()
-
         reward_trainer = RewardModelTrainer(
             reward_model=reward_model,
             policy=ref_policy,
@@ -297,15 +313,20 @@ def train(hparams: HParams):
             print(f"Will save to {save_dir}")
             saver = tf.train.Saver(max_to_keep=20, save_relative_paths=True)
             checkpoint_dir = os.path.join(save_dir, 'reward_model/checkpoints/model.ckpt')
+            print(f"checkpoint_dir: {checkpoint_dir}")
 
             if not save_dir.startswith('gs://'):
                 os.makedirs(os.path.join(save_dir, 'reward_model'), exist_ok=True)
+            
             with tf.gfile.Open(os.path.join(save_dir, 'train_reward_hparams.json'), 'w') as f:
                 json.dump(hparams.to_nested_dict(), f, indent=2)
+            
             with tf.gfile.Open(os.path.join(save_dir, 'reward_model', 'hparams.json'), 'w') as f:
                 json.dump(reward_model.hparams.to_nested_dict(), f, indent=2)
+            
             with tf.gfile.Open(os.path.join(save_dir, 'reward_model', 'encoding'), 'w') as f:
-                json.dump(reward_model.trained_model.encoding.name, f, indent=2)
+                json.dump(reward_model.trained_model.encoding.name, f, indent=2) # "main"
+        
         else:
             saver = None
             checkpoint_dir = None
@@ -314,19 +335,20 @@ def train(hparams: HParams):
             init_ops = tf.group(
                 tf.global_variables_initializer(),
                 tf.local_variables_initializer(),
-                summary.summary_writer_initializer_op())
+                summary.summary_writer_initializer_op()
+            )
 
             @utils.graph_function()
             def sync_models():
-                return utils.variable_synchronizer(comm, vars=ref_policy.get_params() + reward_model.get_params())
+                return utils.variable_synchronizer(comm, 
+                                                   vars=ref_policy.get_params() + reward_model.get_params()
+                                                   )
 
         tf.get_default_graph().finalize()
 
         with utils.mpi_session() as sess:
             init_ops.run()
             sync_models()
-
             reward_trainer.train()
-
             if saver:
                 saver.save(sess, checkpoint_dir)

@@ -1,4 +1,6 @@
-"""Alec's transformer model."""
+"""
+Alec's transformer model.
+"""
 
 from functools import partial
 from typing import Optional
