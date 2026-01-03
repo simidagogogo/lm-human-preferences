@@ -5,6 +5,9 @@ from lm_human_preferences.language import encodings, model
 
 
 class TrainedModel():
+    """
+    已训练的模型
+    """
     def __init__(self, name, *, savedir=None, scope=None):
         self.name = name
         self.scope = scope
@@ -13,10 +16,19 @@ class TrainedModel():
             # 优先使用本地路径（如果设置了环境变量或文件存在）
             local_base = os.environ.get('GPT2_MODEL_PATH', os.path.expanduser('~/gpt-2-models'))
             local_model_path = os.path.join(local_base, 'models', name)
+            print(f"local_model_path: {local_model_path}")
+            # local_model_path: /root/gpt-2-models/models/124M
             
-            # 检查本地路径是否存在（检查 hparams.json 或 checkpoint）
-            if os.path.exists(os.path.join(local_model_path, 'hparams.json')) or \
-               os.path.exists(os.path.join(local_model_path, 'checkpoint')):
+            """
+            (base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences# tree ~/gpt-2-models/models/124M/
+            /root/gpt-2-models/models/124M/
+            ├── checkpoint
+            ├── hparams.json
+            ├── model.ckpt.data-00000-of-00001
+            ├── model.ckpt.index
+            └── model.ckpt.meta
+            """
+            if (os.path.exists(os.path.join(local_model_path, 'hparams.json')) or os.path.exists(os.path.join(local_model_path, 'checkpoint'))):
                 self.savedir = local_model_path
             else:
                 # 回退到 GCS 路径
@@ -33,19 +45,23 @@ class TrainedModel():
     def checkpoint(self):
         if self.name == 'test':
             return None
+        
         ckpt = tf.train.latest_checkpoint(self.savedir)
+        print(f"self.savedir: {self.savedir}, ckpt: {ckpt}")
+        # self.savedir: /root/gpt-2-models/models/124M, ckpt: /root/gpt-2-models/models/124M/model.ckpt
         if ckpt is not None:
             return ckpt
         return tf.train.latest_checkpoint(os.path.join(self.savedir, 'checkpoints'))
 
     def hparams(self):
+        """
+        加载hparams对象
+        """
         if self._hparams is None:
             if self.name == 'test':
                 hparams = test_hparams()
             else:
-                hparams = load_hparams(
-                    os.path.join(self.savedir, 'hparams.json')
-                )
+                hparams = load_hparams(os.path.join(self.savedir, 'hparams.json'))
             self._hparams = hparams
         return copy.deepcopy(self._hparams)
 
@@ -79,6 +95,9 @@ class TrainedModel():
         tf.train.init_from_checkpoint(checkpoint, unchanged)
 
 def load_hparams(file):
+    """
+    从json文件中加载hparams对象
+    """
     hparams = model.HParams()
     hparams.override_from_json_file(file)
     return hparams

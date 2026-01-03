@@ -9,7 +9,8 @@ from lm_human_preferences.utils import gcs
 
 class HParams:
     """
-    Used as a base class for hyperparameter structs. They also need to be annotated with @dataclass.
+    Used as a base class for hyperparameter structs. 
+    They also need to be annotated with @dataclass.
     """
     def parse_json(self, s: str):
         self.override_from_nested_dict(json.loads(s))
@@ -97,11 +98,16 @@ class HParams:
                 raise AttributeError(f"{hp} ({separator.join(ks)}) has no field '{f}'")
 
     def override_from_nested_dict(self, nested_dict):
+        """
+        从json.loads()得到的nested_dict中, 提取出每个key的value, 然后设置到self中
+        """
         for k, v in nested_dict.items():
             if isinstance(v, dict):
+                # 如果当前self.k还未创建, 先调用_type_to_class得到具体class, 然后new一个实例
                 if getattr(self, k) is None:
                     cls = _type_to_class(_get_field(self, k).type)
                     setattr(self, k, cls())
+                # 如果当前self.k已创建, 则调用其override_from_nested_dict方法
                 getattr(self, k).override_from_nested_dict(v)
             else:
                 setattr(self, k, v)

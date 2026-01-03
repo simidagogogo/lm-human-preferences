@@ -83,7 +83,7 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
     if source != 'test':
         with open(gcs.download_file_cached(source, comm=comm)) as f:
             results = json.load(f)
-            print('Num labels found in source:', len(results))
+            print('Num labels found in source:', len(results)) # Num labels found in source: 6260
     else:
         results = [
             {
@@ -309,11 +309,14 @@ def train(hparams: HParams):
         )
 
         save_dir = hparams.run.save_dir
+        print(f"save_dir: {save_dir}")
+        # save_dir: /tmp/save/train_reward/testdesc-2601032319
         if comm.Get_rank() == 0 and save_dir:
             print(f"Will save to {save_dir}")
             saver = tf.train.Saver(max_to_keep=20, save_relative_paths=True)
             checkpoint_dir = os.path.join(save_dir, 'reward_model/checkpoints/model.ckpt')
             print(f"checkpoint_dir: {checkpoint_dir}")
+            # checkpoint_dir: /tmp/save/train_reward/testdesc-2601032319/reward_model/checkpoints/model.ckpt
 
             if not save_dir.startswith('gs://'):
                 os.makedirs(os.path.join(save_dir, 'reward_model'), exist_ok=True)

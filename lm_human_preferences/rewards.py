@@ -12,12 +12,12 @@ from lm_human_preferences.utils.core import Schema
 
 # TODO: combine this with TrainedRewardModel
 class RewardModelTrainer:
-    def __init__(
-            self,
-            trained_model, *,
-            scope='reward_model', use_resource=False,
-            is_root=True,
-    ):
+    def __init__(self,
+                trained_model, 
+                *,
+                scope='reward_model', 
+                use_resource=False,
+                is_root=True,):
         self.trained_model = trained_model
         self.hparams = trained_model.hparams()
         self.is_root = is_root
@@ -26,7 +26,9 @@ class RewardModelTrainer:
         self.encoder = self.trained_model.encoding.get_encoder()
 
         self.scope = scope
-        self.model = model.Model(hparams=self.hparams, scope=f'{scope}/model', scalar_heads=['reward'])
+        self.model = model.Model(hparams=self.hparams, 
+                                 scope=f'{scope}/model', 
+                                 scalar_heads=['reward'])
 
         self.built = False
         self.padding_token = self.encoder.padding_token
