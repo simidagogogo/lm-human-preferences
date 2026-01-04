@@ -26,9 +26,11 @@ class RewardModelTrainer:
         self.encoder = self.trained_model.encoding.get_encoder()
 
         self.scope = scope
-        self.model = model.Model(hparams=self.hparams, 
-                                 scope=f'{scope}/model', 
-                                 scalar_heads=['reward'])
+        self.model = model.Model(
+            hparams=self.hparams, 
+            scope=f'{scope}/model', 
+            scalar_heads=['reward']
+        )
 
         self.built = False
         self.padding_token = self.encoder.padding_token
@@ -43,6 +45,9 @@ class RewardModelTrainer:
         return self.encoder
 
     def _build(self, tokens, do_dropout=False, name=None):
+        """
+        奖励模型前向传播
+        """
         with tf.variable_scope(self.scope, reuse=self.built, auxiliary_name_scope=not self.built, use_resource=self.use_resource):
             lm_output = self.model(X=tokens, do_dropout=do_dropout, padding_token=self.padding_token)
 
@@ -110,6 +115,9 @@ class RewardModelTrainer:
 
 
 class TrainedRewardModel():
+    """
+    训练好的奖励模型
+    """
     def __init__(self, train_dir, encoding, *, scope='reward_model', comm=MPI.COMM_WORLD):
         self.train_dir = train_dir
         self.comm = comm
@@ -125,16 +133,26 @@ class TrainedRewardModel():
         self.padding_token = encoder.padding_token
 
         self.encoder = encoder
-
         self.scope = scope
-        self.model = model.Model(hparams=self.hparams, scope=f'{scope}/model', scalar_heads=['reward'])
+        self.model = model.Model(
+            hparams=self.hparams, 
+            scope=f'{scope}/model', 
+            scalar_heads=['reward']
+        )
 
     def _build(self, X):
+        """
+        奖励模型前向传播
+        :param X: 输入数据
+        :return: 奖励
+        """
         results = self.model(X=X, padding_token=self.padding_token)
         reward = results['reward'][:, -1]
+        
         with tf.variable_scope(f'{self.scope}/reward_norm'):
             self.reward_gain = tf.get_variable('gain', shape=(), initializer=tf.constant_initializer(1))
             self.reward_bias = tf.get_variable('bias', shape=(), initializer=tf.constant_initializer(0))
+        
         reward = self.reward_gain * reward + self.reward_bias
         self._set_initializers()
         return reward

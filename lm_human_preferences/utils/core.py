@@ -187,6 +187,11 @@ def flatten_dict(nested, sep='.'):
 
 @dataclass
 class Schema:
+    """
+    数据结构
+    dtype: 数据类型
+    shape: 数据形状
+    """
     dtype: Any
     shape: Tuple[Optional[int],...]
 
@@ -545,9 +550,11 @@ def graph_function(**schemas: Schema):
     def decorate(make_op):
         def make_ph(path, schema):
             return tf.placeholder(name=f'arg_{make_op.__name__}_{path}', shape=schema.shape, dtype=schema.dtype)
+        
         phs = nest.map_structure_with_paths(make_ph, schemas)
         op = make_op(**phs)
         sig = inspect.signature(make_op)
+        
         @wraps(make_op)
         def run(*args, **kwargs):
             bound: inspect.BoundArguments = sig.bind(*args, **kwargs)
@@ -563,7 +570,6 @@ def graph_function(**schemas: Schema):
             flat_arguments = nest.flatten_up_to(phs, bound.arguments)
             feed = {ph: arg for ph, arg in zip(flat_phs, flat_arguments)}
             run_options = tf.RunOptions(report_tensor_allocations_upon_oom=True)
-
             return tf.get_default_session().run(op, feed_dict=feed, options=run_options, run_metadata=None)
         return run
     return decorate
@@ -579,7 +585,9 @@ def pearson_r(x: tf.Tensor, y: tf.Tensor):
     return cov / tf.sqrt(x_var * y_var)
 
 def shape_list(x):
-    """Deal with dynamic shape in tensorflow cleanly."""
+    """
+    Deal with dynamic shape in tensorflow cleanly.
+    """
     static = x.shape.as_list()
     dynamic = tf.shape(x)
     return [dynamic[i] if s is None else s for i, s in enumerate(static)]
@@ -594,6 +602,12 @@ def safe_zip(*args):
 
 
 def get_summary_writer(save_dir, subdir='', comm=MPI.COMM_WORLD):
+    """
+    创建summary writer
+    :param save_dir: 保存目录
+    :param subdir: 子目录
+    :return: summary writer
+    """
     if comm.Get_rank() != 0:
         return None
     if save_dir is None:
@@ -619,6 +633,15 @@ def record_stats(*, stats, summary_writer, step, log_interval, name=None, comm=M
 
 
 def minimize(*, loss, params, lr, name=None, comm=MPI.COMM_WORLD):
+    """
+    执行优化步骤: 计算梯度、进行MPI均值归约, 并用Adam优化器更新参数
+    :param loss: 损失函数
+    :param params: 待优化参数列表
+    :param lr: 学习率
+    :param name: 可选名称
+    :param comm: MPI通信器(用于多进程同步梯度)
+    :return: 优化操作
+    """
     with tf.name_scope(name, 'minimize'):
         with tf.name_scope('grads'):
             grads = tf.gradients(loss, params)

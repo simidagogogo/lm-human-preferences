@@ -13,6 +13,7 @@ from tensorflow.python.framework import function
 from lm_human_preferences.utils import core as utils
 from lm_human_preferences.utils import hyperparams
 
+
 @dataclass
 class HParams(hyperparams.HParams):
     # Encoding (set during loading process)
@@ -40,14 +41,23 @@ def gelu(x):
 
 
 def dropout(x, pdrop, *, do_dropout, stateless=True, seed=None, name):
-    """Like tf.nn.dropout but stateless.
+    """
+    Like tf.nn.dropout but stateless.
+    :param x: 输入数据
+    :param pdrop: dropout率
+    :param do_dropout: 是否进行dropout
+    :param stateless: 是否无状态
+    :param seed: 种子
+    :param name: 名称
+    :return: 输出数据
     """
     if stateless:
         assert seed is not None
+    
     def _dropout():
         with tf.name_scope(name):
             noise_shape = tf.shape(x)
-
+            # TODO
             if stateless:
                 r = tf.random.stateless_uniform(noise_shape, seed, dtype=x.dtype)
                 # floor uniform [keep_prob, 1.0 + keep_prob)
@@ -265,6 +275,14 @@ def past_shape(*, hparams, batch_size=None, sequence=None):
 
 
 def positions_for(*, batch, sequence, past_length, mask):
+    """
+    计算位置
+    :param batch: 批量大小
+    :param sequence: 序列长度
+    :param past_length: 过去长度
+    :param mask: 掩码
+    :return: 位置
+    """
     if mask is None:
         return utils.expand_tile(past_length + tf.range(sequence), batch, axis=0)
     else:
@@ -272,27 +290,55 @@ def positions_for(*, batch, sequence, past_length, mask):
 
 
 def split_seed(seed, n=2):
+    """
+    分割种子
+    :param seed: 种子
+    :param n: 分割数量
+    :return: 分割后的种子
+    """
     if n == 0:
         return []
     return tf.split(
         tf.random.stateless_uniform(dtype=tf.int64, shape=[2*n], minval=-2**63, maxval=2**63-1, seed=seed),
-        n, name='split_seeds')
+        n, 
+        name='split_seeds'
+    )
 
 
 class Model:
     def __init__(self, hparams: HParams, scalar_heads=[], scope=None):
         self.hparams = hparams
         self.scalar_heads = scalar_heads
+        # 变量作用域
         with tf.variable_scope(scope, 'model') as scope:
             self.scope = scope
         self.built = False
 
-    def __call__(self, *, X, Y=None, past=None, past_tokens=None, mask=None,
-                 padding_token: Optional[int]=None, do_dropout=False):
+    def __call__(self, 
+                *, 
+                X, 
+                Y=None, 
+                past=None, 
+                past_tokens=None, 
+                mask=None,
+                padding_token: Optional[int]=None, 
+                do_dropout=False):
+        """
+        模型前向传播
+        :param X: 输入数据
+        :param Y: 输出数据
+        :param past: 过去数据
+        :param past_tokens: 过去tokens
+        :param mask: 掩码
+        :param padding_token: 填充token
+        :param do_dropout: 是否进行dropout
+        """
         X = tf.convert_to_tensor(X, dtype=tf.int32)
         if mask is not None:
             mask = tf.convert_to_tensor(mask, dtype=tf.bool)
             assert mask.dtype == tf.bool
+        
+        # 填充token处理
         if padding_token is not None:
             assert mask is None, 'At most one of mask and padding_token should be set'
             mask = tf.not_equal(X, padding_token)
@@ -300,27 +346,50 @@ class Model:
             if past is not None:
                 assert past_tokens is not None, 'padding_token requires past_tokens'
                 mask = tf.concat([tf.not_equal(past_tokens, padding_token), mask], axis=1)
+        
         with tf.variable_scope(self.scope, reuse=self.built, auxiliary_name_scope=not self.built):
             self.built = True
             results = {}
             batch, sequence = utils.shape_list(X)
-
             seed = tf.random.uniform(dtype=tf.int64, shape=[2], minval=-2**63, maxval=2**63-1)
             wpe_seed, wte_seed, blocks_seed, heads_seed = split_seed(seed, 4)
 
-            wpe = tf.get_variable('wpe', [self.hparams.n_ctx, self.hparams.n_embd],
-                                  initializer=tf.random_normal_initializer(stddev=0.01))
-            wte = tf.get_variable('wte', [self.hparams.n_vocab, self.hparams.n_embd],
-                                  initializer=tf.random_normal_initializer(stddev=0.02))
-            wpe = dropout(wpe, self.hparams.embd_pdrop,
-                          do_dropout=do_dropout, stateless=True, seed=wpe_seed, name='wpe_drop')
-            wte = dropout(wte, self.hparams.embd_pdrop,
-                          do_dropout=do_dropout, stateless=True, seed=wte_seed, name='wte_drop')
+            wpe = tf.get_variable(
+                'wpe', 
+                [self.hparams.n_ctx, self.hparams.n_embd],
+                initializer=tf.random_normal_initializer(stddev=0.01)
+            )
+            wte = tf.get_variable(
+                'wte', 
+                [self.hparams.n_vocab, self.hparams.n_embd],
+                initializer=tf.random_normal_initializer(stddev=0.02)
+            )
+            wpe = dropout(
+                wpe, 
+                self.hparams.embd_pdrop,
+                do_dropout=do_dropout, 
+                stateless=True,
+                seed=wpe_seed, 
+                name='wpe_drop'
+            )
+            wte = dropout(
+                wte, 
+                self.hparams.embd_pdrop,
+                do_dropout=do_dropout, 
+                stateless=True, 
+                seed=wte_seed, 
+                name='wte_drop'
+            )
 
             past_length = 0 if past is None else tf.shape(past)[-2]
-
-            positions = positions_for(batch=batch, sequence=sequence, past_length=past_length, mask=mask)
+            positions = positions_for(
+                batch=batch, 
+                sequence=sequence, 
+                past_length=past_length, 
+                mask=mask
+            )
             h = embed(X, wte) + embed(positions, wpe)
+            
             # Transformer
             presents = []
             pasts = tf.unstack(past, axis=1) if past is not None else [None] * self.hparams.n_layer
@@ -328,11 +397,20 @@ class Model:
             block_seeds = split_seed(blocks_seed, self.hparams.n_layer)
             for layer, (past, block_seed) in enumerate(zip(pasts, block_seeds)):
                 h, present = block(
-                    h, 'h%d' % layer, past=past, mask=mask, do_dropout=do_dropout, scale=True,
-                    hparams=self.hparams, seed=block_seed)
+                    h, 
+                    'h%d' % layer, 
+                    past=past, 
+                    mask=mask, 
+                    do_dropout=do_dropout, 
+                    scale=True,
+                    hparams=self.hparams, 
+                    seed=block_seed
+                )
                 presents.append(present)
+            
             results['present'] = tf.stack(presents, axis=1)
             h = norm(h, 'ln_f')
+            
             if mask is not None:
                 # For non-present tokens, use the output from the last present token instead.
                 present_indices = utils.where(mask[:,past_length:], tf.tile(tf.range(sequence)[None,:], [batch, 1]), -1)
@@ -351,7 +429,8 @@ class Model:
 
             flat_losses = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=flat_labels,
-                logits=flat_lm_logits)
+                logits=flat_lm_logits
+            )
 
             lm_losses = tf.reshape(flat_losses, [batch, sequence])
             lm_logits = tf.reshape(flat_lm_logits, [batch, sequence, -1])
@@ -361,16 +440,15 @@ class Model:
             results['lm_logits'] = lm_logits
             results['lm_losses'] = tf.reduce_mean(relevant_losses, axis=-1)
 
+            # TODO: 头处理
             head_seeds = split_seed(heads_seed, len(self.scalar_heads))
             for head_name, head_seed in zip(self.scalar_heads, head_seeds):
                 with tf.variable_scope(f"heads/{head_name}"):
-                    dropped_h = \
-                        dropout(h, self.hparams.head_pdrop, do_dropout=do_dropout, seed=head_seed, name='drop')
+                    dropped_h = dropout(h, self.hparams.head_pdrop, do_dropout=do_dropout, seed=head_seed, name='drop')
                     # TODO: refactor this, perhaps move to Policy
                     res, reg_loss = fc_layer(dropped_h, (), scale=0 if head_name == 'value' else None)
                     results[head_name] = tf.cast(res, dtype=tf.float32, name='res_cast')
                     results[f"{head_name}_regularizer"] = tf.cast(reg_loss, dtype=tf.float32, name='reg_loss_cast')
-
             # All done!
             return results
 

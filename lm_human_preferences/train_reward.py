@@ -117,6 +117,16 @@ class RewardModelTrainer():
             **self.question_schemas,
             **self.label_type.label_schemas(),
         }
+        print(f"data_schemas: {data_schemas}")
+        """
+        data_schemas: {
+            'query': Schema(dtype=tf.int32, shape=(64,)), 
+            'sample0': Schema(dtype=tf.int32, shape=(24,)), 
+            'sample1': Schema(dtype=tf.int32, shape=(24,)), 
+            'sample2': Schema(dtype=tf.int32, shape=(24,)), 
+            'sample3': Schema(dtype=tf.int32, shape=(24,)), 
+            'best': Schema(dtype=tf.int32, shape=())}
+        """
 
         with tf.device(None), tf.device('/cpu:0'):
             with tf.variable_scope('label_buffer', use_resource=True, initializer=tf.zeros_initializer):
@@ -125,32 +135,48 @@ class RewardModelTrainer():
         with tf.name_scope('train_reward'):
             summary_writer = utils.get_summary_writer(self.hparams.run.save_dir, subdir='reward_model', comm=comm)
 
-            @utils.graph_function(
-                indices=Schema(tf.int32, (None,)),
-                lr=Schema(tf.float32, ()))
+            @utils.graph_function(indices=Schema(tf.int32, (None,)), lr=Schema(tf.float32, ()))
             def train_batch(indices, lr):
                 with tf.name_scope('minibatch'):
                     minibatch = self.train_buffer.read(indices)
-                    stats = self.label_type.loss(reward_model=self.reward_model.get_rewards_op, labels=minibatch)
-
+                    stats = self.label_type.loss(
+                        reward_model=self.reward_model.get_rewards_op, 
+                        labels=minibatch
+                    )
                     train_op = utils.minimize(
-                        loss=stats['loss'], lr=lr, params=self.reward_model.get_params(), name='opt', comm=self.comm)
+                        loss=stats['loss'], 
+                        lr=lr, 
+                        params=self.reward_model.get_params(), 
+                        name='opt', 
+                        comm=self.comm
+                    )
 
                     with tf.control_dependencies([train_op]):
-                        step_var = tf.get_variable(name='train_step', dtype=tf.int64, shape=(), trainable=False, use_resource=True)
+                        step_var = tf.get_variable(
+                            name='train_step', 
+                            dtype=tf.int64, 
+                            shape=(), 
+                            trainable=False, 
+                            use_resource=True
+                        )
                         step = step_var.assign_add(1) - 1
-
                         stats = utils.FlatStats.from_dict(stats).map_flat(partial(utils.mpi_allreduce_mean, comm=comm)).as_dict()
-
-                        train_stat_op = utils.record_stats(stats=stats, summary_writer=summary_writer, step=step, log_interval=hparams.run.log_interval, comm=comm)
-
+                        train_stat_op = utils.record_stats(
+                            stats=stats, 
+                            summary_writer=summary_writer, 
+                            step=step, 
+                            log_interval=hparams.run.log_interval, 
+                            comm=comm
+                        )
                 return train_stat_op
             self.train_batch = train_batch
 
         if self.hparams.normalize_before or self.hparams.normalize_after:
             @utils.graph_function()
             def target_mean_std():
-                """Returns the means and variances to target for each reward model"""
+                """
+                Returns the means and variances to target for each reward model
+                """
                 # Should be the same on all ranks because the train_buf should be the same
                 scales = self.label_type.target_scales(self.train_buffer.data())
                 if scales is None:
@@ -329,7 +355,6 @@ def train(hparams: HParams):
             
             with tf.gfile.Open(os.path.join(save_dir, 'reward_model', 'encoding'), 'w') as f:
                 json.dump(reward_model.trained_model.encoding.name, f, indent=2) # "main"
-        
         else:
             saver = None
             checkpoint_dir = None
@@ -343,12 +368,12 @@ def train(hparams: HParams):
 
             @utils.graph_function()
             def sync_models():
-                return utils.variable_synchronizer(comm, 
-                                                   vars=ref_policy.get_params() + reward_model.get_params()
-                                                   )
+                return utils.variable_synchronizer(
+                    comm, 
+                    vars=ref_policy.get_params() + reward_model.get_params()
+                )
 
         tf.get_default_graph().finalize()
-
         with utils.mpi_session() as sess:
             init_ops.run()
             sync_models()

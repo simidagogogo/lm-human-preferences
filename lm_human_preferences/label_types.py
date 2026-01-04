@@ -1,9 +1,8 @@
 """
 Interface and implementations of label types for a reward model.
 
-这段代码定义了奖励模型(reward model)标注类型的接口与三种具体实现(PickBest, ScalarRating, ScalarComparison)
-用于人类偏好学习RLHF流程中各种类型的“人类评价标注”场景
-兼顾模型训练的输入输出和损失计算
+这段代码定义了奖励模型(reward model)人类标注类型LabelType的接口与三种具体实现(PickBest, ScalarRating, ScalarComparison)
+用于人类偏好学习RLHF流程中各种类型的“人类评价标注”场景, 兼顾模型训练的输入输出和损失计算
 """
 
 from abc import ABC, abstractmethod
@@ -15,23 +14,33 @@ from lm_human_preferences.utils.core import Schema, pearson_r
 class LabelType(ABC):
     @abstractmethod
     def label_schemas(self) -> Dict[str, Schema]:
-        """Schema for the human annotations."""
+        """
+        人类标注数据结构
+        Schema for the human annotations.
+        """
 
     @abstractmethod
     def target_scales(self, labels: Dict[str, tf.Tensor]) -> Optional[tf.Tensor]:
-        """Extracts scalars out of labels whose scale corresponds to the reward model's output.
-           May be none if the labels have no such information."""
+        """
+        提取人类标注数据中与奖励模型输出尺度一致的标量数据
+        Extracts scalars out of labels whose scale corresponds to the reward model's output.
+        May be none if the labels have no such information.
+        """
 
     @abstractmethod
     def loss(self, reward_model, labels: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
         """
+        损失计算
         :param labels: the questions with their labels
         :returns: a dict of stats, including 'loss' for the actual loss
         """
 
     @abstractmethod
     def question_schemas(self, *, query_length, response_length) -> Dict[str, Schema]:
-        """Schema for the questions associated with this LabelType."""
+        """
+        问题数据结构
+        Schema for the questions associated with this LabelType.
+        """
 
 
 class PickBest(LabelType):
