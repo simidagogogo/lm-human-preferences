@@ -157,6 +157,8 @@ def download_file_cached(url, comm=None):
             if not os.path.exists(local_path):
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 print(f'Downloading from Azure: {azure_url}')
+                # Downloading from Azure: https://openaipublic.blob.core.windows.net/lm-human-preferences/datasets/book_passages/train.jsonl
+                # Downloading from Azure: https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json
                 try:
                     response = requests.get(azure_url, stream=True, timeout=60)
                     response.raise_for_status()
@@ -165,6 +167,7 @@ def download_file_cached(url, comm=None):
                             f.write(chunk)
                     open(sentinel, 'a').close()
                     print(f'Downloaded to: {local_path}')
+                    # Downloaded to: /tmp/gcs-cache/azure/a998b81e63c85b3ae25af67f7592f1a5/offline_5k.json
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code == 404:
                         print(f'WARNING: File not found at {azure_url}')
@@ -174,6 +177,7 @@ def download_file_cached(url, comm=None):
                             f.write('[]')
                         open(sentinel, 'a').close()
                         print(f'Created placeholder at: {local_path}')
+                        # Created placeholder at: /tmp/gcs-cache/azure/5b26697d4ddef055367dcab663d508fb/train.jsonl
                     else:
                         raise
         else:
