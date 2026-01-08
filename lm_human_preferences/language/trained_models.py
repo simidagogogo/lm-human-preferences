@@ -92,6 +92,15 @@ class TrainedModel():
             unchanged[name] = var
         for name in params.keys():
             print(f'Param {name} is missing from checkpoint {checkpoint}')
+        """
+        Param ref_policy/model/heads/value/w is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+        Param ref_policy/model/heads/value/b is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+
+        Param reward_model/model/heads/reward/w is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+        Param reward_model/model/heads/reward/b is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+        Param reward_model/reward_norm/gain is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+        Param reward_model/reward_norm/bias is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+        """
         tf.train.init_from_checkpoint(checkpoint, unchanged)
 
 def load_hparams(file):
