@@ -217,8 +217,11 @@ class RewardModelTrainer():
             @utils.graph_function()
             def sample_policy_batch():
                 queries = query_sampler('ref_queries')['tokens']
+                # 生成的序列
                 responses = policy.respond_op(
-                    queries=queries, length=hparams.task.response_length)['responses']
+                    queries=queries, 
+                    length=hparams.task.response_length
+                )['responses']
                 return queries, responses
 
             def sample_policy_responses(n_samples):
@@ -307,6 +310,9 @@ def train(hparams: HParams):
         hyperparams.dump(m.hparams(), name='model_hparams')
 
         comm = MPI.COMM_WORLD
+        # Reference Policy, 参考策略或基准策略
+        # 在RLHF中训练主策略policy同时, 还要保留一个基准策略ref_policy, 用于评价当前主策略是否偏离原始分布过远
+        # PPO算法的 KL penalty 项常用 ref_policy 做为 KL基准，鼓励新策略不要偏离原始模型太远
         ref_policy = Policy(
             m, 
             scope='ref_policy',
@@ -316,7 +322,10 @@ def train(hparams: HParams):
             build_respond=False
         )
 
-        reward_model = rewards.RewardModelTrainer(m, is_root=comm.Get_rank() == 0)
+        reward_model = rewards.RewardModelTrainer(
+            m, 
+            is_root=comm.Get_rank() == 0
+        )
         
         query_sampler = lm_tasks.make_query_sampler(
             hparams=hparams.task, 
