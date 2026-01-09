@@ -129,14 +129,21 @@ def ceil_div(a, b):
 
 
 def expand_tile(value, size, *, axis, name=None):
-    """Add a new axis of given size."""
+    """
+    Add a new axis of given size.
+    把一维/单条的 token 序列（如前缀prefix或后缀suffix）复制成批量（batch_size）份，组成一个二维矩阵，让每条query前后都加上相同的前/后缀。
+    """
     with tf.name_scope(name, 'expand_tile', [value, size, axis]) as scope:
         value = tf.convert_to_tensor(value, name='value')
         size = tf.convert_to_tensor(size, name='size')
         ndims = value.shape.rank
         if axis < 0:
             axis += ndims + 1
-        return tf.tile(tf.expand_dims(value, axis=axis), [1]*axis + [size] + [1]*(ndims - axis), name=scope)
+        return tf.tile(
+            tf.expand_dims(value, axis=axis), 
+            [1] * axis + [size] + [1] * (ndims - axis), 
+            name=scope
+        )
 
 
 def index_each(a, ix):
@@ -338,16 +345,30 @@ def take_top_k_logits(logits, k):
 
 
 def take_top_p_logits(logits, p):
-    """Nucleus sampling"""
-    batch, sequence, _ = logits.shape.as_list()
+    """
+    Nucleus sampling(Top-p Sampling)
+    核采样, 即Top-p采样, 是一种文本生成时的概率采样策略. 
+    把为每条样本, 每句话中不在top-p范围里的logit全屏蔽(不会被采样到), 只保留top-p token对应的候选概率
+    
+    @logits: 形状[batch, sequence, vocab_size], 模型输出每个token原始得分
+    @p: float. 保留所有概率加起来大于等于p的那些token
+
+    对于每一个时间步的输出logits
+        1. 先降序排序取概率最大的几个token
+        2. 然后从累计概率≥p的那些token中采样(通常p如0.9)
+        3. 其余置信度更小的token直接屏蔽掉(logit设很小), 保证采样结果更可靠、不发散
+    """
+    batch, sequence, vocab_size = logits.shape.as_list()
     sorted_logits = tf.sort(logits, direction='DESCENDING', axis=-1)
     cumulative_probs = tf.cumsum(tf.nn.softmax(sorted_logits, axis=-1), axis=-1)
-    indices = tf.stack([
-        tf.range(0, batch)[:, tf.newaxis],
-        tf.range(0, sequence)[tf.newaxis, :],
-        # number of indices to include
-        tf.maximum(tf.reduce_sum(tf.cast(cumulative_probs <= p, tf.int32), axis=-1) - 1, 0),
-    ], axis=-1)
+    
+    indices = tf.stack(
+        [tf.range(0, batch)[:, tf.newaxis],
+         tf.range(0, sequence)[tf.newaxis, :],
+         # number of indices to include
+         tf.maximum(tf.reduce_sum(tf.cast(cumulative_probs <= p, tf.int32), axis=-1) - 1, 0),],
+        axis=-1
+    )
     min_values = tf.gather_nd(sorted_logits, indices)
     return tf.where(
         logits < min_values,
@@ -548,12 +569,16 @@ class FlatStats:
 
 
 def find_trainable_variables(key):
+    """
+    如果用Variable(trainable=True)创建变量, 则该变量会自动添加到GraphKeys.TRAINABLE_VARIABLES集合中
+    @key: 只取name与key匹配的变量(key就是变量名的前缀)
+    """
     return [v for v in tf.trainable_variables() if v.op.name.startswith(key + '/')]
 
 
 def variables_on_gpu():
-    """Prevent variables from accidentally being placed on the CPU.
-
+    """
+    Prevent variables from accidentally being placed on the CPU.
     This dodges an obscure bug in tf.train.init_from_checkpoint.
     """
     if _our_gpu() is None:
@@ -563,11 +588,15 @@ def variables_on_gpu():
     return tf.device(device)
 
 
-
+# TODO: 没看懂
 def graph_function(**schemas: Schema):
     def decorate(make_op):
         def make_ph(path, schema):
-            return tf.placeholder(name=f'arg_{make_op.__name__}_{path}', shape=schema.shape, dtype=schema.dtype)
+            return tf.placeholder(
+                name=f'arg_{make_op.__name__}_{path}', 
+                shape=schema.shape, 
+                dtype=schema.dtype
+            )
         
         phs = nest.map_structure_with_paths(make_ph, schemas)
         op = make_op(**phs)
@@ -593,7 +622,6 @@ def graph_function(**schemas: Schema):
     return decorate
 
 
-
 def pearson_r(x: tf.Tensor, y: tf.Tensor):
     assert x.shape.rank == 1
     assert y.shape.rank == 1
@@ -602,6 +630,7 @@ def pearson_r(x: tf.Tensor, y: tf.Tensor):
     cov = tf.reduce_mean((x - x_mean)*(y - y_mean), axis=0)
     return cov / tf.sqrt(x_var * y_var)
 
+
 def shape_list(x):
     """
     Deal with dynamic shape in tensorflow cleanly.
@@ -609,6 +638,7 @@ def shape_list(x):
     static = x.shape.as_list()
     dynamic = tf.shape(x)
     return [dynamic[i] if s is None else s for i, s in enumerate(static)]
+
 
 def safe_zip(*args):
     """Zip, but require all sequences to be the same length."""
