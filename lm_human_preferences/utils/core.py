@@ -298,14 +298,32 @@ def entropy_from_logits(logits):
 
 
 def logprobs_from_logits(*, logits, labels):
-    return -tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits)
+    """
+    负log概率. 概率越小, 损失越大
+    """
+    return -tf.nn.sparse_softmax_cross_entropy_with_logits(
+        labels=labels, 
+        logits=logits
+    )
 
 
 def sample_from_logits(logits, dtype=tf.int32):
+    """
+    用于内容生成多样性, 避免确定性结果
+
+    假设logits.shape=(batch, sequence, vocab_size)
+    拉平成二维[batch * sequence, vocab_size]
+    对每组logits批量按概率分布采样, 得到[batch * sequence, 1]
+    再reshape回[batch, sequence], 代表每个位置采样出来的token的id
+    """
     with tf.name_scope('sample_from_logits', values=[logits]) as scope:
-        shape = tf.shape(logits)
-        flat_logits = tf.reshape(logits, [-1, shape[-1]])
-        flat_samples = tf.random.categorical(flat_logits, num_samples=1, dtype=dtype)
+        shape = tf.shape(logits)                            # (512, 50257), (512, 1, 50257)
+        flat_logits = tf.reshape(logits, [-1, shape[-1]])   # (512, 50257)
+        flat_samples = tf.random.categorical(               # (512, 1)
+            flat_logits, 
+            num_samples=1, 
+            dtype=dtype
+        )
         return tf.reshape(flat_samples, shape[:-1], name=scope)
 
 
