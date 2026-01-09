@@ -79,10 +79,8 @@ class TrainedModel():
             return None
         
         ckpt = tf.train.latest_checkpoint(self.savedir)
-        print(f"self.savedir: {self.savedir}")
-        print(f"ckpt: {ckpt}")
-        # self.savedir: /root/gpt-2-models/models/124M
-        # ckpt: /root/gpt-2-models/models/124M/model.ckpt
+        print(f"self.savedir: {self.savedir}")  # self.savedir: /root/gpt-2-models/models/124M
+        print(f"ckpt: {ckpt}")                  # ckpt: /root/gpt-2-models/models/124M/model.ckpt
 
         if ckpt is not None:
             return ckpt
@@ -122,7 +120,7 @@ class TrainedModel():
         如果参数shape不匹配直接报错(防止 silent bug)
         """
         
-        # 参数字典不为空。否则后面操作都没意义
+        # 参数字典不为空, 否则后面操作都没意义
         assert params
         
         params = dict(**params) # 深拷贝
@@ -132,13 +130,13 @@ class TrainedModel():
         for i, item in enumerate(available):
             # item形如('model/h1/attn/c_attn/w', [1, 768, 2304]), 详见: checkpoint_variable.md
             print(f"available[{i}]: {item}")
-        
-        
+
         # 映射字典: checkpoint中变量名->当前模型变量对象(要求模型名/shape匹配)
-        # 处理 scope（作用域）不同带来的"参数名不一致"问题
+        
         unchanged = {}
         for name, shape in available:
             our_name = name
+            # 处理scope不同带来的"参数名不一致"问题
             if self.scope:
                 if name.startswith(self.scope):
                     our_name = name[len(self.scope):].lstrip('/')
@@ -149,12 +147,10 @@ class TrainedModel():
             our_name = f"{new_scope}/{our_name}"
             if our_name not in params:
                 # NOTE: this happens for global_step and optimizer variables(e.g. beta1_power, beta2_power, blah/Adam, blah/Adam_1)
-                # print(f'{name} is missing for scope {new_scope}')
+                print(f'{name} is missing for scope {new_scope}')
                 continue
             var = params[our_name]
             del params[our_name]
-            
-            # 需要映射关系、scope、shape匹配
             assert var.shape == shape, f"Shape mismatch: {var.op.name}.shape = {var.shape} != {shape}"
             unchanged[name] = var
         
@@ -164,7 +160,6 @@ class TrainedModel():
         """
         Param ref_policy/model/heads/value/w is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
         Param ref_policy/model/heads/value/b is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
-
         Param reward_model/model/heads/reward/w is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
         Param reward_model/model/heads/reward/b is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
         Param reward_model/reward_norm/gain is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
