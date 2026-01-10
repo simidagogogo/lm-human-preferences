@@ -266,6 +266,13 @@ class ReversibleEncoder:
         # unicode字符串->byte序列->原始文本
         text = bytearray([self.byte_decoder[c] for c in text]).decode("utf-8", errors=self.errors)
         print(f"final text: {text}")
+        
+        """
+        tokens: [19638, 38271, 37400, 15425, 45738, 43003, 7420, 47041, 7291, 19744, 44978, 41022, 15421, 23106, 39383, 14100, 7453, 7780, 32145, 40536, 19163, 18020, 20907, 18273]
+        unicode text: ĠpacketaucusesĠNingĠvillagesĠFrankensteinĠcanineĠSaudibahĠfacilitiesĠpricedanskiĠMbpsĠtraditionsHeightĠdedicatemillionĠeligermĠDoddĠComplianceĠappreciationĠCaribbeanĠPTSUntil
+        final text: packetaucuses Ning villages Frankenstein canine Saudibah facilities pricedanski Mbps traditionsHeight dedicatemillion eligerm Dodd Compliance appreciation Caribbean PTSUntil
+        packetaucuses Ning villages Frankenstein canine Saudibah facilities pricedanski Mbps traditionsHeight dedicatemillion eligerm Dodd Compliance appreciation Caribbean PTSUntil        
+        """
         return text
 
 

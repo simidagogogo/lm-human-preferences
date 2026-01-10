@@ -5,7 +5,7 @@ from functools import partial
 
 # Try to import mpi4py, if it fails, use our mock
 try:
-    import mpi4py
+    from mpi4py import MPI
 except ImportError:
     import sys
     import os
@@ -14,6 +14,7 @@ except ImportError:
     import mpi_mock
     sys.modules['mpi4py'] = mpi_mock
     sys.modules['mpi4py.MPI'] = mpi_mock.MPI
+    from mpi_mock import MPI
 
 import tensorflow as tf
 
@@ -25,21 +26,80 @@ from lm_human_preferences import lm_tasks
 from lm_human_preferences import train_policy
 
 
-def sample_policy(save_dir=None, savescope='policy', temperature=1.0, seed=None, batch_size=4, nsamples=0):
+def sample_policy(save_dir=None, model_name=None, savescope='policy', temperature=1.0, seed=None, batch_size=4, nsamples=0):
     """
-    @save_dir:      模型参数和超参数保存的目录
+    @save_dir:      模型参数和超参数保存的目录（用于加载训练后的策略模型）
+    @model_name:    原始 GPT-2 模型名称（如 '124M'），用于直接使用原始模型采样
     @savescope:     模型作用域命名(通常为policy)
     @temperature:   采样温度(采样多样性调节)
     @seed:          随机种子（可复现实验）
     @batch_size:    每轮采样多少条(query/response对)
     @nsamples:      总采样数量(0为无限采样)
+    
+    注意：save_dir 和 model_name 二选一。如果提供 model_name，则使用原始 GPT-2 模型和默认配置。
     """
-    hparams = train_policy.HParams()
-    hparams.override_from_json_file(os.path.join(save_dir, 'train_policy_hparams.json'))
-    hyperparams.dump(hparams)
-
-    task = hparams.task
+    # #region agent log
+    import json
+    with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:28', 'message': 'sample_policy entry', 'data': {'save_dir': save_dir, 'model_name': model_name, 'savescope': savescope, 'temperature': temperature, 'seed': seed, 'batch_size': batch_size, 'nsamples': nsamples}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+    # #endregion
+    
     comm = MPI.COMM_WORLD
+    
+    # 支持两种模式：使用训练后的策略模型，或使用原始 GPT-2 模型
+    if model_name is not None:
+        # 模式2：使用原始 GPT-2 模型，使用默认配置
+        # #region agent log
+        with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:45', 'message': 'using raw GPT-2 model', 'data': {'model_name': model_name}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        # #endregion
+        
+        # 创建默认任务配置（基于 launch.py 中的 books_task）
+        hparams = train_policy.HParams()
+        task = lm_tasks.TaskHParams(
+            query_length=64,
+            query_dataset='books',
+            query_prefix='',
+            query_suffix='',
+            start_text='.',
+            end_text='.',
+            response_length=24,
+            truncate_token=13,
+            truncate_after=16,
+            penalty_reward_value=-1,
+        )
+        task.policy.temperature = temperature  # 使用用户指定的温度，如果未指定则使用默认值1.0
+        task.policy.initial_model = model_name
+        hparams.task = task
+        hyperparams.dump(hparams)
+        
+        # 使用原始 GPT-2 模型（当 savedir=None 时，TrainedModel 会从 GPT2_MODEL_PATH/models/name 加载）
+        # 原始 GPT-2 checkpoint 的变量名是 model/...，所以不需要 scope 前缀
+        model_savedir = None
+        model_name_for_loading = model_name
+        model_scope = None  # 原始模型不需要 scope 前缀
+    elif save_dir is not None:
+        # 模式1：使用训练后的策略模型
+        # #region agent log
+        with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:72', 'message': 'using trained policy model', 'data': {'save_dir': save_dir}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        # #endregion
+        
+        hparams = train_policy.HParams()
+        hparams_file = os.path.join(save_dir, 'train_policy_hparams.json')
+        # #region agent log
+        with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
+            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'sample.py:78', 'message': 'before override_from_json_file', 'data': {'hparams_file': hparams_file, 'file_exists': os.path.exists(hparams_file)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
+        # #endregion
+        hparams.override_from_json_file(hparams_file)
+        hyperparams.dump(hparams)
+        task = hparams.task
+        
+        model_savedir = os.path.join(save_dir, 'policy')
+        model_name_for_loading = 'sample'
+        model_scope = 'policy'  # 训练后的模型使用 policy scope
+    else:
+        raise ValueError("必须提供 save_dir 或 model_name 参数之一")
     
     # 支持多进程采样. 每一张卡/进程负责nsamples_per_rank个样本
     nsamples_per_rank = utils.exact_div(nsamples, comm.Get_size())
@@ -47,9 +107,9 @@ def sample_policy(save_dir=None, savescope='policy', temperature=1.0, seed=None,
     
     with tf.Graph().as_default():
         m = trained_models.TrainedModel(
-            name='sample', 
-            savedir=os.path.join(save_dir, 'policy'), 
-            scope='policy'
+            name=model_name_for_loading, 
+            savedir=model_savedir, 
+            scope=model_scope
         )
         encoder = m.encoding.get_encoder()
         hyperparams.dump(m.hparams(), name='model_hparams')
@@ -119,4 +179,8 @@ if __name__ == '__main__':
 
 """
 ./sample.py sample --save_dir gs://jeffwu-rcall/results/safety/lmhf-sent-69c5170-1909161359/ --mpi 8
+
+pipenv run ./sample.py sample --model_name 124M --mpi 1 --batch_size 2 --nsamples 4
+
+pipenv run ./sample.py sample --save_dir /path/to/trained/policy --mpi 1
 """
