@@ -97,7 +97,7 @@ class TrainedModel():
             else:
                 hparams = load_hparams(os.path.join(self.savedir, 'hparams.json'))
             self._hparams = hparams
-        print(f"name: {self.name}, _hparams: {self._hparams}")
+        print(f"[hparams]. name: {self.name}, _hparams: {self._hparams}")
         # name: 124M, _hparams: HParams(n_vocab=50257, n_ctx=1024, n_embd=768, n_head=12, n_layer=12, embd_pdrop=0.1, attn_pdrop=0.1, resid_pdrop=0.1, head_pdrop=0.1)
         return copy.deepcopy(self._hparams)
 

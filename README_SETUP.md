@@ -378,3 +378,298 @@ text: s s h f z g m. w r m z l t w k p p a b. j p l m c a. d s d k r a l a. r b 
 start_token: 13
 end_token: 13
 ```
+
+
+```bash
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences# pipenv run ./sample.py sample --model_name 124M --mpi 1 --batch_size 2 --nsamples 4
+name: main, self.base_path: /root/gpt-2-models/encodings/main
+name: main, self.encoder_path: /root/gpt-2-models/encodings/main/encoder.json
+name: main, self.bpe_path: /root/gpt-2-models/encodings/main/vocab.bpe
+name: test, self.base_path: gs://gpt-2/encodings/test
+debug. enter launch(). name: sample, f: functools.partial(<function sample_policy at 0x7fda16109290>, model_name='124M', batch_size=2, nsamples=4)
+==========================
+hparams:
+    ppo:
+        batch_size: 64
+        cliprange: 0.2
+        cliprange_value: 0.2
+        gamma: 1
+        lam: 0.95
+        lr: 5e-06
+        nminibatches: 1
+        noptepochs: 4
+        total_episodes: 2000000
+        vf_coef: 0.1
+        whiten_rewards: True
+    rewards:
+        adaptive_kl: None
+        kl_coef: 0.2
+        train_new_model: None
+        trained_model: None
+    run:
+        log_interval: 10
+        save_dir: None
+        save_interval: 50
+        seed: None
+    task:
+        end_text: .
+        penalty_reward_value: -1
+        policy:
+            initial_model: 124M
+            temperature: 1.0
+        query_dataset: books
+        query_length: 64
+        query_prefix: 
+        query_suffix: 
+        response_length: 24
+        start_text: .
+        truncate_after: 16
+        truncate_token: 13
+==========================
+debug. model_savedir: None, model_name_for_loading: 124M, model_scope: None
+debug. task: TaskHParams(query_length=64, query_dataset='books', query_prefix='', query_suffix='', start_text='.', end_text='.', response_length=24, truncate_token=13, truncate_after=16, penalty_reward_value=-1, policy=PolicyHParams(temperature=1.0, initial_model='124M')), nsamples: 4, comm.Get_size(): 1, nsamples_per_rank: 4
+local_model_path: /root/gpt-2-models/models/124M
+name: 124M, scope: None, self.savedir: /root/gpt-2-models/models/124M, self.encoding: <lm_human_preferences.language.encodings.Encoding object at 0x7fd9f8d55f50>
+len(encoder_dict): 50257
+encoder_dict[:5]: {'!': 0, '"': 1, '#': 2, '$': 3, '%': 4}
+len(bpe_merges): 50000
+bpe_merges[:5]: [('Ġ', 't'), ('Ġ', 'a'), ('h', 'e'), ('i', 'n'), ('r', 'e')]
+[hparams]. name: 124M, _hparams: HParams(n_vocab=50257, n_ctx=1024, n_embd=768, n_head=12, n_layer=12, embd_pdrop=0.1, attn_pdrop=0.1, resid_pdrop=0.1, head_pdrop=0.1)
+==========================
+model_hparams:
+    attn_pdrop: 0.1
+    embd_pdrop: 0.1
+    head_pdrop: 0.1
+    n_ctx: 1024
+    n_embd: 768
+    n_head: 12
+    n_layer: 12
+    n_vocab: 50257
+    resid_pdrop: 0.1
+==========================
+[hparams]. name: 124M, _hparams: HParams(n_vocab=50257, n_ctx=1024, n_embd=768, n_head=12, n_layer=12, embd_pdrop=0.1, attn_pdrop=0.1, resid_pdrop=0.1, head_pdrop=0.1)
+len(encoder_dict): 50257
+encoder_dict[:5]: {'!': 0, '"': 1, '#': 2, '$': 3, '%': 4}
+len(bpe_merges): 50000
+bpe_merges[:5]: [('Ġ', 't'), ('Ġ', 'a'), ('h', 'e'), ('i', 'n'), ('r', 'e')]
+debug. batch_size: Tensor("sample_seq/strided_slice:0", shape=(), dtype=int32)
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/framework/op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Colocations handled automatically by placer.
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/framework/function.py:1007: calling Graph.create_op (from tensorflow.python.framework.ops) with compute_shapes is deprecated and will be removed in a future version.
+Instructions for updating:
+Shapes are always computed; don't use the compute_shapes as it has no effect.
+self.savedir: /root/gpt-2-models/models/124M
+ckpt: /root/gpt-2-models/models/124M/model.ckpt
+len(available): 148
+available[0]: ('model/h0/attn/c_attn/b', [2304])
+available[1]: ('model/h0/attn/c_attn/w', [1, 768, 2304])
+available[2]: ('model/h0/attn/c_proj/b', [768])
+available[3]: ('model/h0/attn/c_proj/w', [1, 768, 768])
+available[4]: ('model/h0/ln_1/b', [768])
+available[5]: ('model/h0/ln_1/g', [768])
+available[6]: ('model/h0/ln_2/b', [768])
+available[7]: ('model/h0/ln_2/g', [768])
+available[8]: ('model/h0/mlp/c_fc/b', [3072])
+available[9]: ('model/h0/mlp/c_fc/w', [1, 768, 3072])
+available[10]: ('model/h0/mlp/c_proj/b', [768])
+available[11]: ('model/h0/mlp/c_proj/w', [1, 3072, 768])
+available[12]: ('model/h1/attn/c_attn/b', [2304])
+available[13]: ('model/h1/attn/c_attn/w', [1, 768, 2304])
+available[14]: ('model/h1/attn/c_proj/b', [768])
+available[15]: ('model/h1/attn/c_proj/w', [1, 768, 768])
+available[16]: ('model/h1/ln_1/b', [768])
+available[17]: ('model/h1/ln_1/g', [768])
+available[18]: ('model/h1/ln_2/b', [768])
+available[19]: ('model/h1/ln_2/g', [768])
+available[20]: ('model/h1/mlp/c_fc/b', [3072])
+available[21]: ('model/h1/mlp/c_fc/w', [1, 768, 3072])
+available[22]: ('model/h1/mlp/c_proj/b', [768])
+available[23]: ('model/h1/mlp/c_proj/w', [1, 3072, 768])
+available[24]: ('model/h10/attn/c_attn/b', [2304])
+available[25]: ('model/h10/attn/c_attn/w', [1, 768, 2304])
+available[26]: ('model/h10/attn/c_proj/b', [768])
+available[27]: ('model/h10/attn/c_proj/w', [1, 768, 768])
+available[28]: ('model/h10/ln_1/b', [768])
+available[29]: ('model/h10/ln_1/g', [768])
+available[30]: ('model/h10/ln_2/b', [768])
+available[31]: ('model/h10/ln_2/g', [768])
+available[32]: ('model/h10/mlp/c_fc/b', [3072])
+available[33]: ('model/h10/mlp/c_fc/w', [1, 768, 3072])
+available[34]: ('model/h10/mlp/c_proj/b', [768])
+available[35]: ('model/h10/mlp/c_proj/w', [1, 3072, 768])
+available[36]: ('model/h11/attn/c_attn/b', [2304])
+available[37]: ('model/h11/attn/c_attn/w', [1, 768, 2304])
+available[38]: ('model/h11/attn/c_proj/b', [768])
+available[39]: ('model/h11/attn/c_proj/w', [1, 768, 768])
+available[40]: ('model/h11/ln_1/b', [768])
+available[41]: ('model/h11/ln_1/g', [768])
+available[42]: ('model/h11/ln_2/b', [768])
+available[43]: ('model/h11/ln_2/g', [768])
+available[44]: ('model/h11/mlp/c_fc/b', [3072])
+available[45]: ('model/h11/mlp/c_fc/w', [1, 768, 3072])
+available[46]: ('model/h11/mlp/c_proj/b', [768])
+available[47]: ('model/h11/mlp/c_proj/w', [1, 3072, 768])
+available[48]: ('model/h2/attn/c_attn/b', [2304])
+available[49]: ('model/h2/attn/c_attn/w', [1, 768, 2304])
+available[50]: ('model/h2/attn/c_proj/b', [768])
+available[51]: ('model/h2/attn/c_proj/w', [1, 768, 768])
+available[52]: ('model/h2/ln_1/b', [768])
+available[53]: ('model/h2/ln_1/g', [768])
+available[54]: ('model/h2/ln_2/b', [768])
+available[55]: ('model/h2/ln_2/g', [768])
+available[56]: ('model/h2/mlp/c_fc/b', [3072])
+available[57]: ('model/h2/mlp/c_fc/w', [1, 768, 3072])
+available[58]: ('model/h2/mlp/c_proj/b', [768])
+available[59]: ('model/h2/mlp/c_proj/w', [1, 3072, 768])
+available[60]: ('model/h3/attn/c_attn/b', [2304])
+available[61]: ('model/h3/attn/c_attn/w', [1, 768, 2304])
+available[62]: ('model/h3/attn/c_proj/b', [768])
+available[63]: ('model/h3/attn/c_proj/w', [1, 768, 768])
+available[64]: ('model/h3/ln_1/b', [768])
+available[65]: ('model/h3/ln_1/g', [768])
+available[66]: ('model/h3/ln_2/b', [768])
+available[67]: ('model/h3/ln_2/g', [768])
+available[68]: ('model/h3/mlp/c_fc/b', [3072])
+available[69]: ('model/h3/mlp/c_fc/w', [1, 768, 3072])
+available[70]: ('model/h3/mlp/c_proj/b', [768])
+available[71]: ('model/h3/mlp/c_proj/w', [1, 3072, 768])
+available[72]: ('model/h4/attn/c_attn/b', [2304])
+available[73]: ('model/h4/attn/c_attn/w', [1, 768, 2304])
+available[74]: ('model/h4/attn/c_proj/b', [768])
+available[75]: ('model/h4/attn/c_proj/w', [1, 768, 768])
+available[76]: ('model/h4/ln_1/b', [768])
+available[77]: ('model/h4/ln_1/g', [768])
+available[78]: ('model/h4/ln_2/b', [768])
+available[79]: ('model/h4/ln_2/g', [768])
+available[80]: ('model/h4/mlp/c_fc/b', [3072])
+available[81]: ('model/h4/mlp/c_fc/w', [1, 768, 3072])
+available[82]: ('model/h4/mlp/c_proj/b', [768])
+available[83]: ('model/h4/mlp/c_proj/w', [1, 3072, 768])
+available[84]: ('model/h5/attn/c_attn/b', [2304])
+available[85]: ('model/h5/attn/c_attn/w', [1, 768, 2304])
+available[86]: ('model/h5/attn/c_proj/b', [768])
+available[87]: ('model/h5/attn/c_proj/w', [1, 768, 768])
+available[88]: ('model/h5/ln_1/b', [768])
+available[89]: ('model/h5/ln_1/g', [768])
+available[90]: ('model/h5/ln_2/b', [768])
+available[91]: ('model/h5/ln_2/g', [768])
+available[92]: ('model/h5/mlp/c_fc/b', [3072])
+available[93]: ('model/h5/mlp/c_fc/w', [1, 768, 3072])
+available[94]: ('model/h5/mlp/c_proj/b', [768])
+available[95]: ('model/h5/mlp/c_proj/w', [1, 3072, 768])
+available[96]: ('model/h6/attn/c_attn/b', [2304])
+available[97]: ('model/h6/attn/c_attn/w', [1, 768, 2304])
+available[98]: ('model/h6/attn/c_proj/b', [768])
+available[99]: ('model/h6/attn/c_proj/w', [1, 768, 768])
+available[100]: ('model/h6/ln_1/b', [768])
+available[101]: ('model/h6/ln_1/g', [768])
+available[102]: ('model/h6/ln_2/b', [768])
+available[103]: ('model/h6/ln_2/g', [768])
+available[104]: ('model/h6/mlp/c_fc/b', [3072])
+available[105]: ('model/h6/mlp/c_fc/w', [1, 768, 3072])
+available[106]: ('model/h6/mlp/c_proj/b', [768])
+available[107]: ('model/h6/mlp/c_proj/w', [1, 3072, 768])
+available[108]: ('model/h7/attn/c_attn/b', [2304])
+available[109]: ('model/h7/attn/c_attn/w', [1, 768, 2304])
+available[110]: ('model/h7/attn/c_proj/b', [768])
+available[111]: ('model/h7/attn/c_proj/w', [1, 768, 768])
+available[112]: ('model/h7/ln_1/b', [768])
+available[113]: ('model/h7/ln_1/g', [768])
+available[114]: ('model/h7/ln_2/b', [768])
+available[115]: ('model/h7/ln_2/g', [768])
+available[116]: ('model/h7/mlp/c_fc/b', [3072])
+available[117]: ('model/h7/mlp/c_fc/w', [1, 768, 3072])
+available[118]: ('model/h7/mlp/c_proj/b', [768])
+available[119]: ('model/h7/mlp/c_proj/w', [1, 3072, 768])
+available[120]: ('model/h8/attn/c_attn/b', [2304])
+available[121]: ('model/h8/attn/c_attn/w', [1, 768, 2304])
+available[122]: ('model/h8/attn/c_proj/b', [768])
+available[123]: ('model/h8/attn/c_proj/w', [1, 768, 768])
+available[124]: ('model/h8/ln_1/b', [768])
+available[125]: ('model/h8/ln_1/g', [768])
+available[126]: ('model/h8/ln_2/b', [768])
+available[127]: ('model/h8/ln_2/g', [768])
+available[128]: ('model/h8/mlp/c_fc/b', [3072])
+available[129]: ('model/h8/mlp/c_fc/w', [1, 768, 3072])
+available[130]: ('model/h8/mlp/c_proj/b', [768])
+available[131]: ('model/h8/mlp/c_proj/w', [1, 3072, 768])
+available[132]: ('model/h9/attn/c_attn/b', [2304])
+available[133]: ('model/h9/attn/c_attn/w', [1, 768, 2304])
+available[134]: ('model/h9/attn/c_proj/b', [768])
+available[135]: ('model/h9/attn/c_proj/w', [1, 768, 768])
+available[136]: ('model/h9/ln_1/b', [768])
+available[137]: ('model/h9/ln_1/g', [768])
+available[138]: ('model/h9/ln_2/b', [768])
+available[139]: ('model/h9/ln_2/g', [768])
+available[140]: ('model/h9/mlp/c_fc/b', [3072])
+available[141]: ('model/h9/mlp/c_fc/w', [1, 768, 3072])
+available[142]: ('model/h9/mlp/c_proj/b', [768])
+available[143]: ('model/h9/mlp/c_proj/w', [1, 3072, 768])
+available[144]: ('model/ln_f/b', [768])
+available[145]: ('model/ln_f/g', [768])
+available[146]: ('model/wpe', [1024, 768])
+available[147]: ('model/wte', [50257, 768])
+Param policy/model/heads/value/w is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+Param policy/model/heads/value/b is missing from checkpoint /root/gpt-2-models/models/124M/model.ckpt
+context_output['logits'].shape: (?, ?, ?)
+first_output_logits.shape: (?, ?)
+first_outputs.shape: (?,)
+first_logprobs.shape: (?,)
+logits.shape: (?, 1, ?), next_sample.shape: (?, 1), next_logprob: Tensor("sample_seq/while/Neg:0", shape=(?, 1), dtype=float32)
+debug. sequence_length: 64, mode: test, repeat_count: None
+start_token: 13, end_token: 13, padding_token: None
+padding_token: 50259
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/data/ops/dataset_ops.py:429: py_func (from tensorflow.python.ops.script_ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+tf.py_func is deprecated in TF V2. Instead, use
+    tf.py_function, which takes a python function which manipulates tf eager
+    tensors instead of numpy arrays. It's easy to convert a tf eager tensor to
+    an ndarray (just call tensor.numpy()) but having access to eager tensors
+    means `tf.py_function`s can use accelerators such as GPUs as well as
+    being differentiable using a gradient tape.
+    
+2026-01-11 11:25:15.876738: I tensorflow/core/platform/cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 AVX512F FMA
+2026-01-11 11:25:15.897482: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 2699995000 Hz
+2026-01-11 11:25:15.897758: I tensorflow/compiler/xla/service/service.cc:150] XLA service 0xd76d130 executing computations on platform Host. Devices:
+2026-01-11 11:25:15.897784: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (0): <undefined>, <undefined>
+generated: 0
+WARNING: Dataset file appears to be empty or placeholder. Using test data generator.
+================================================================================
+tokens: [304, 474, 304, 331, 288, 256, 1976, 1312, 374, 266, 1976, 256, 304, 13, 288, 2124, 269, 410, 479, 279, 374, 288, 300, 13, 479, 256, 334, 308, 374, 279, 267, 10662, 1312, 275, 1976, 13, 257, 269, 2124, 285, 266, 1976, 410, 334, 257, 256, 279, 479, 289, 13, 266, 269, 308, 264, 289, 289, 1976, 304, 1976, 374, 13, 50259, 50259, 50259]
+unicode text: ĠeĠjĠeĠyĠdĠtĠzĠiĠrĠwĠzĠtĠe.ĠdĠxĠcĠvĠkĠpĠrĠdĠl.ĠkĠtĠuĠgĠrĠpĠoĠqĠiĠbĠz.ĠaĠcĠxĠmĠwĠzĠvĠuĠaĠtĠpĠkĠh.ĠwĠcĠgĠsĠhĠhĠzĠeĠzĠr.
+final text:  e j e y d t z i r w z t e. d x c v k p r d l. k t u g r p o q i b z. a c x m w z v u a t p k h. w c g s h h z e z r.
+tokens: [264, 300, 267, 256, 304, 1976, 5145, 1976, 257, 269, 2124, 300, 264, 266, 546, 1976, 264, 269, 308, 285, 257, 308, 764, 393]
+unicode text: ĠsĠlĠoĠtĠeĠzĠ!ĠzĠaĠcĠxĠlĠsĠwĠaboutĠzĠsĠcĠgĠmĠaĠgĠ.Ġor
+final text:  s l o t e z ! z a c x l s w about z s c g m a g . or
+que:  e j e y d t z i r w z t e. d x c v k p r d l. k t u g r p o q i b z. a c x m w z v u a t p k h. w c g s h h z e z r.
+res:  s l o t e z ! z a c x l s w about z s c g m a g . or
+================================================================================
+tokens: [474, 266, 288, 374, 479, 374, 308, 1976, 256, 374, 264, 474, 267, 13, 256, 1976, 285, 479, 264, 289, 13, 277, 308, 277, 275, 256, 410, 1312, 279, 269, 13, 410, 331, 304, 304, 275, 269, 13, 410, 285, 266, 10662, 1312, 10662, 1976, 289, 308, 410, 264, 299, 264, 13, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259]
+unicode text: ĠjĠwĠdĠrĠkĠrĠgĠzĠtĠrĠsĠjĠo.ĠtĠzĠmĠkĠsĠh.ĠfĠgĠfĠbĠtĠvĠiĠpĠc.ĠvĠyĠeĠeĠbĠc.ĠvĠmĠwĠqĠiĠqĠzĠhĠgĠvĠsĠnĠs.
+final text:  j w d r k r g z t r s j o. t z m k s h. f g f b t v i p c. v y e e b c. v m w q i q z h g v s n s.
+tokens: [299, 264, 264, 267, 374, 331, 410, 264, 13, 266, 308, 374, 334, 269, 304, 269, 256, 267, 266, 764, 267, 266, 764, 267]
+unicode text: ĠnĠsĠsĠoĠrĠyĠvĠs.ĠwĠgĠrĠuĠcĠeĠcĠtĠoĠwĠ.ĠoĠwĠ.Ġo
+final text:  n s s o r y v s. w g r u c e c t o w . o w . o
+que:  j w d r k r g z t r s j o. t z m k s h. f g f b t v i p c. v y e e b c. v m w q i q z h g v s n s.
+res:  n s s o r y v s. w g r u c e c t o w . o w . o
+generated: 2
+================================================================================
+tokens: [479, 308, 289, 257, 2124, 1312, 288, 266, 289, 300, 1976, 277, 479, 299, 275, 13, 1976, 304, 266, 289, 275, 264, 13, 374, 256, 410, 269, 257, 288, 334, 308, 256, 264, 288, 285, 269, 300, 288, 13, 256, 257, 308, 277, 266, 13, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259]
+unicode text: ĠkĠgĠhĠaĠxĠiĠdĠwĠhĠlĠzĠfĠkĠnĠb.ĠzĠeĠwĠhĠbĠs.ĠrĠtĠvĠcĠaĠdĠuĠgĠtĠsĠdĠmĠcĠlĠd.ĠtĠaĠgĠfĠw.
+final text:  k g h a x i d w h l z f k n b. z e w h b s. r t v c a d u g t s d m c l d. t a g f w.
+tokens: [266, 289, 269, 264, 13, 266, 289, 257, 288, 257, 264, 13, 334, 256, 1312, 275, 374, 269, 267, 334, 256, 300, 331, 406]
+unicode text: ĠwĠhĠcĠs.ĠwĠhĠaĠdĠaĠs.ĠuĠtĠiĠbĠrĠcĠoĠuĠtĠlĠyĠL
+final text:  w h c s. w h a d a s. u t i b r c o u t l y L
+que:  k g h a x i d w h l z f k n b. z e w h b s. r t v c a d u g t s d m c l d. t a g f w.
+res:  w h c s. w h a d a s. u t i b r c o u t l y L
+================================================================================
+tokens: [269, 334, 474, 300, 299, 277, 275, 10662, 13, 275, 256, 288, 266, 285, 308, 1312, 300, 2124, 279, 264, 277, 13, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259]
+unicode text: ĠcĠuĠjĠlĠnĠfĠbĠq.ĠbĠtĠdĠwĠmĠgĠiĠlĠxĠpĠsĠf.
+final text:  c u j l n f b q. b t d w m g i l x p s f.
+tokens: [289, 279, 264, 2124, 331, 304, 374, 449, 1312, 1312, 474, 509, 1312, 1976, 13, 479, 289, 331, 13, 479, 304, 1976, 288, 410]
+unicode text: ĠhĠpĠsĠxĠyĠeĠrĠJĠiĠiĠjĠKĠiĠz.ĠkĠhĠy.ĠkĠeĠzĠdĠv
+final text:  h p s x y e r J i i j K i z. k h y. k e z d v
+que:  c u j l n f b q. b t d w m g i l x p s f.
+res:  h p s x y e r J i i j K i z. k h y. k e z d v
+```

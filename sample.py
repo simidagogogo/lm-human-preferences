@@ -36,17 +36,21 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
     @batch_size:    每轮采样多少条(query/response对)
     @nsamples:      总采样数量(0为无限采样)
     
-    注意：save_dir 和 model_name 二选一。如果提供 model_name，则使用原始 GPT-2 模型和默认配置。
+    注意: save_dir 和 model_name 二选一。如果提供 model_name，则使用原始 GPT-2 模型和默认配置。
     """
-    # #region agent log
     import json
     with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
-        f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:28', 'message': 'sample_policy entry', 'data': {'save_dir': save_dir, 'model_name': model_name, 'savescope': savescope, 'temperature': temperature, 'seed': seed, 'batch_size': batch_size, 'nsamples': nsamples}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
-    # #endregion
+        f.write(json.dumps(
+            {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:28', 'message': 'sample_policy entry', 
+             'data': {'save_dir': save_dir, 'model_name': model_name, 'savescope': savescope, 'temperature': temperature, 'seed': seed, 'batch_size': batch_size, 'nsamples': nsamples}, 
+             'timestamp': int(__import__('time').time() * 1000)
+            }
+        ))
+        f.write("\n")
     
     comm = MPI.COMM_WORLD
     
-    # 支持两种模式：使用训练后的策略模型，或使用原始 GPT-2 模型
+    # 支持两种模式: 使用训练后的策略模型, 或使用原始 GPT-2 模型
     if model_name is not None:
         # 模式2：使用原始 GPT-2 模型，使用默认配置
         # #region agent log
@@ -54,7 +58,7 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
             f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:45', 'message': 'using raw GPT-2 model', 'data': {'model_name': model_name}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
         # #endregion
         
-        # 创建默认任务配置（基于 launch.py 中的 books_task）
+        # 创建默认任务配置(基于launch.py中的books_task)
         hparams = train_policy.HParams()
         task = lm_tasks.TaskHParams(
             query_length=64,
@@ -68,9 +72,51 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
             truncate_after=16,
             penalty_reward_value=-1,
         )
-        task.policy.temperature = temperature  # 使用用户指定的温度，如果未指定则使用默认值1.0
+        task.policy.temperature = temperature
         task.policy.initial_model = model_name
         hparams.task = task
+        
+        """
+        ==========================
+        hparams:
+            ppo:
+                batch_size: 64
+                cliprange: 0.2
+                cliprange_value: 0.2
+                gamma: 1
+                lam: 0.95
+                lr: 5e-06
+                nminibatches: 1
+                noptepochs: 4
+                total_episodes: 2000000
+                vf_coef: 0.1
+                whiten_rewards: True
+            rewards:
+                adaptive_kl: None
+                kl_coef: 0.2
+                train_new_model: None
+                trained_model: None
+            run:
+                log_interval: 10
+                save_dir: None
+                save_interval: 50
+                seed: None
+            task:
+                end_text: .
+                penalty_reward_value: -1
+                policy:
+                    initial_model: 124M
+                    temperature: 1.0
+                query_dataset: books
+                query_length: 64
+                query_prefix: 
+                query_suffix: 
+                response_length: 24
+                start_text: .
+                truncate_after: 16
+                truncate_token: 13
+        ==========================
+        """
         hyperparams.dump(hparams)
         
         # 使用原始 GPT-2 模型（当 savedir=None 时，TrainedModel 会从 GPT2_MODEL_PATH/models/name 加载）
@@ -80,31 +126,55 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
         model_scope = None  # 原始模型不需要 scope 前缀
     elif save_dir is not None:
         # 模式1：使用训练后的策略模型
-        # #region agent log
         with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:72', 'message': 'using trained policy model', 'data': {'save_dir': save_dir}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
-        # #endregion
+            f.write(json.dumps(
+                {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:72', 'message': 'using trained policy model', 
+                 'data': {'save_dir': save_dir}, 'timestamp': int(__import__('time').time() * 1000)}
+            ))
+            f.write("\n")
         
         hparams = train_policy.HParams()
         hparams_file = os.path.join(save_dir, 'train_policy_hparams.json')
-        # #region agent log
+
+        # region agent log
         with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
             f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'sample.py:78', 'message': 'before override_from_json_file', 'data': {'hparams_file': hparams_file, 'file_exists': os.path.exists(hparams_file)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
-        # #endregion
+        # endregion
+
         hparams.override_from_json_file(hparams_file)
         hyperparams.dump(hparams)
         task = hparams.task
-        
         model_savedir = os.path.join(save_dir, 'policy')
         model_name_for_loading = 'sample'
         model_scope = 'policy'  # 训练后的模型使用 policy scope
     else:
         raise ValueError("必须提供 save_dir 或 model_name 参数之一")
     
+    print(f"debug. model_savedir: {model_savedir}, model_name_for_loading: {model_name_for_loading}, model_scope: {model_scope}")
+    # debug. model_savedir: None, model_name_for_loading: 124M, model_scope: None
+
     # 支持多进程采样. 每一张卡/进程负责nsamples_per_rank个样本
     nsamples_per_rank = utils.exact_div(nsamples, comm.Get_size())
     print(f"debug. task: {task}, nsamples: {nsamples}, comm.Get_size(): {comm.Get_size()}, nsamples_per_rank: {nsamples_per_rank}")
-    
+    """
+    debug. task: TaskHParams(
+        query_length=64, 
+        query_dataset='books', 
+        query_prefix='', 
+        query_suffix='', 
+        start_text='.', 
+        end_text='.', 
+        response_length=24, 
+        truncate_token=13, 
+        truncate_after=16, 
+        penalty_reward_value=-1, 
+        policy=PolicyHParams(temperature=1.0, initial_model='124M')
+    ), 
+    nsamples: 4, 
+    comm.Get_size(): 1, 
+    nsamples_per_rank: 4
+    """
+
     with tf.Graph().as_default():
         m = trained_models.TrainedModel(
             name=model_name_for_loading, 
@@ -112,9 +182,23 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
             scope=model_scope
         )
         encoder = m.encoding.get_encoder()
+        
+        """
+        ==========================
+        model_hparams:
+            attn_pdrop: 0.1
+            embd_pdrop: 0.1
+            head_pdrop: 0.1
+            n_ctx: 1024
+            n_embd: 768
+            n_head: 12
+            n_layer: 12
+            n_vocab: 50257
+            resid_pdrop: 0.1
+        ==========================
+        """
         hyperparams.dump(m.hparams(), name='model_hparams')
         utils.set_mpi_seed(seed)
-
         policy = Policy(
             m, 
             scope='policy',
@@ -156,14 +240,17 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
             """
             generated = 0
             while nsamples_per_rank == 0 or generated < nsamples_per_rank:
+                print(f"generated: {generated}")
                 queries = sample_queries()
                 rollouts = policy.respond(queries, length=task.response_length)
                 assert len(queries.tolist()) == batch_size
                 assert len(rollouts['responses'].tolist()) == batch_size
                 for q, r in zip(queries.tolist(), rollouts['responses'].tolist()):
                     print('=' * 80)
-                    print(encoder.decode(q).replace("\n", "⏎"))
-                    print(encoder.decode(r).replace("\n", "⏎"))
+                    que = encoder.decode(q).replace("\n", "⏎")
+                    res = encoder.decode(r).replace("\n", "⏎")
+                    print(f"que: {que}")
+                    print(f"res: {res}")
                 generated += batch_size
 
 
