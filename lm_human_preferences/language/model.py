@@ -309,29 +309,26 @@ class Model:
     def __init__(self, hparams: HParams, scalar_heads=[], scope=None):
         self.hparams = hparams
         self.scalar_heads = scalar_heads
-        # 变量作用域
         with tf.variable_scope(scope, 'model') as scope:
             self.scope = scope
         self.built = False
 
-    def __call__(self, 
-                *, 
-                X, 
-                Y=None, 
-                past=None, 
-                past_tokens=None, 
-                mask=None,
-                padding_token: Optional[int]=None, 
-                do_dropout=False):
+    def __call__(
+        self, 
+        *, 
+        X, 
+        Y=None, 
+        past=None, 
+        past_tokens=None, 
+        mask=None,
+        padding_token: Optional[int]=None, 
+        do_dropout=False
+    ):
         """
         模型前向传播
-        :param X: 输入数据
-        :param Y: 输出数据
-        :param past: 过去数据
-        :param past_tokens: 过去tokens
-        :param mask: 掩码
-        :param padding_token: 填充token
-        :param do_dropout: 是否进行dropout
+        :param X: 当前输入tokens
+        :param past: kvcache
+        :param past_tokens: 所有历史tokens
         """
         X = tf.convert_to_tensor(X, dtype=tf.int32)
         if mask is not None:
@@ -345,9 +342,14 @@ class Model:
             X = tf.where(mask, X, tf.zeros_like(X))
             if past is not None:
                 assert past_tokens is not None, 'padding_token requires past_tokens'
+                # 拼接历史mask和当前mask
                 mask = tf.concat([tf.not_equal(past_tokens, padding_token), mask], axis=1)
         
-        with tf.variable_scope(self.scope, reuse=self.built, auxiliary_name_scope=not self.built):
+        with tf.variable_scope(
+            self.scope, 
+            reuse=self.built, 
+            auxiliary_name_scope=not self.built
+        ):
             self.built = True
             results = {}
             batch, sequence = utils.shape_list(X)
