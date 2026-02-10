@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+"""
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences/lm_human_preferences# pipenv run ./test_train_policy.py 
+name: main, self.base_path: /root/gpt-2-models/encodings/main
+name: main, self.encoder_path: /root/gpt-2-models/encodings/main/encoder.json
+name: main, self.bpe_path: /root/gpt-2-models/encodings/main/vocab.bpe
+name: test, self.base_path: gs://gpt-2/encodings/test
+"""
+
 import json
 import os
 import sys
@@ -10,7 +18,17 @@ from typing import Optional
 
 import numpy as np
 import tensorflow as tf
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    import sys
+    import os
+    # Add current directory to path and import mock
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import mpi_mock
+    sys.modules['mpi4py'] = mpi_mock
+    sys.modules['mpi4py.MPI'] = mpi_mock.MPI
+    from mpi_mock import MPI
 from tensorflow.contrib import summary
 
 from lm_human_preferences import lm_tasks, train_reward
