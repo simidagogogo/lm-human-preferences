@@ -13,7 +13,18 @@ from typing import Any, Dict, Tuple, Optional
 
 import numpy as np
 import tensorflow as tf
-from mpi4py import MPI
+try:
+    from mpi4py import MPI
+except ImportError:
+    import sys
+    import os
+    # Add current directory to path and import mock
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import mpi_mock
+    sys.modules['mpi4py'] = mpi_mock
+    sys.modules['mpi4py.MPI'] = mpi_mock.MPI
+    from mpi_mock import MPI
+
 from tensorflow.contrib import summary
 
 try:
