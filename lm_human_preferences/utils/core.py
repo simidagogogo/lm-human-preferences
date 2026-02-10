@@ -1,4 +1,6 @@
-"""Utilities."""
+"""
+Utilities.
+"""
 
 import collections
 import contextlib
@@ -102,7 +104,9 @@ def _our_gpu():
 
 
 def mpi_session_config():
-    """Make a tf.ConfigProto to use only the GPU assigned to this MPI session."""
+    """
+    Make a tf.ConfigProto to use only the GPU assigned to this MPI session.
+    """
     config = tf.ConfigProto()
     gpu = _our_gpu()
     if gpu is not None:
@@ -112,11 +116,14 @@ def mpi_session_config():
 
 
 def mpi_session():
-    """Create a session using only the GPU assigned to this MPI process."""
+    """
+    Create a session using only the GPU assigned to this MPI process.
+    """
     return tf.Session(config=mpi_session_config())
 
 
 def set_mpi_seed(seed: Optional[int]):
+    """设置随机数种子"""
     if seed is not None:
         rank = MPI.COMM_WORLD.Get_rank()
         seed = seed + rank * 100003  # Prime (kept for backwards compatibility even though it does nothing)
@@ -142,7 +149,7 @@ def ceil_div(a, b):
 def expand_tile(value, size, *, axis, name=None):
     """
     Add a new axis of given size.
-    把一维/单条的 token 序列（如前缀prefix或后缀suffix）复制成批量（batch_size）份，组成一个二维矩阵，让每条query前后都加上相同的前/后缀。
+    把一维/单条token序列复制成size份, 组成一个二维矩阵
     """
     with tf.name_scope(name, 'expand_tile', [value, size, axis]) as scope:
         value = tf.convert_to_tensor(value, name='value')
@@ -150,6 +157,9 @@ def expand_tile(value, size, *, axis, name=None):
         ndims = value.shape.rank
         if axis < 0:
             axis += ndims + 1
+            
+        # 目标: axis位置复制size份, 而其他位置不变
+        # 倍数列表: 新维度左边的维度[1]*axis + 新插入的维度[size] + 新维度右边的维度[1]*(ndims-axis)
         return tf.tile(
             tf.expand_dims(value, axis=axis), 
             [1] * axis + [size] + [1] * (ndims - axis), 
@@ -177,7 +187,9 @@ def index_each(a, ix):
         return tf.gather_nd(a, tf.stack([i0, ix], axis=-1), name=scope)
 
 def cumulative_max(x):
-    """Takes the (inclusive) cumulative maximum along the last axis of x. (Not efficient.)"""
+    """
+    Takes the (inclusive) cumulative maximum along the last axis of x. (Not efficient.)
+    """
     x = tf.convert_to_tensor(x)
     with tf.name_scope('cumulative_max', values=[x]) as scope:
         repeated = tf.tile(
@@ -211,7 +223,7 @@ class Schema:
     shape: 数据形状
     """
     dtype: Any
-    shape: Tuple[Optional[int],...]
+    shape: Tuple[Optional[int], ...] # ...表示不定长度, 同质类型
 
 
 def add_batch_dim(schemas, batch_size=None):
@@ -317,31 +329,25 @@ def entropy_from_logits(logits):
 
 def logprobs_from_logits(*, logits, labels):
     """
-    负log概率. 概率越小, 损失越大
+    对softmaxt交叉熵(负对数概率)取反, 表示负的softmaxt交叉熵(对数概率).
     """
-    return -tf.nn.sparse_softmax_cross_entropy_with_logits(
-        labels=labels, 
-        logits=logits
-    )
+    return -tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=logits)
 
 
 def sample_from_logits(logits, dtype=tf.int32):
     """
     用于内容生成多样性, 避免确定性结果
-
-    假设logits.shape=(batch, sequence, vocab_size)
-    拉平成二维[batch * sequence, vocab_size]
+    @logits. (batch, sequence, vocab_size)
+    
+    先拉平成二维[batch * sequence, vocab_size]
     对每组logits批量按概率分布采样, 得到[batch * sequence, 1]
     再reshape回[batch, sequence], 代表每个位置采样出来的token的id
     """
     with tf.name_scope('sample_from_logits', values=[logits]) as scope:
         shape = tf.shape(logits)                            # (512, 50257), (512, 1, 50257)
         flat_logits = tf.reshape(logits, [-1, shape[-1]])   # (512, 50257)
-        flat_samples = tf.random.categorical(               # (512, 1)
-            flat_logits, 
-            num_samples=1, 
-            dtype=dtype
-        )
+        # 从logits分布中随机采样类别索引(logits数值越大, 概率越大)
+        flat_samples = tf.random.categorical(flat_logits, num_samples=1, dtype=dtype) # (512, 1)
         return tf.reshape(flat_samples, shape[:-1], name=scope)
 
 
@@ -398,7 +404,9 @@ def whiten(values, shift_mean=True):
 
 
 def where(cond, true, false, name=None):
-    """Similar to tf.where, but broadcasts scalar values."""
+    """
+    Similar to tf.where, but broadcasts scalar values.
+    """
     with tf.name_scope(name, 'where', [cond, true, false]) as name:
         cond = tf.convert_to_tensor(cond, name='cond', dtype=tf.bool)
         true = tf.convert_to_tensor(true, name='true',
@@ -599,8 +607,12 @@ def variables_on_gpu():
     return tf.device(device)
 
 
-# TODO: 没看懂
 def graph_function(**schemas: Schema):
+    """
+    TODO
+    graph_function可将Python函数转成静态图TF操作
+    使用utils.graph_function将respond_op和analyze_responses_op包装成易用的TF函数(类似tf.function)
+    """
     def decorate(make_op):
         def make_ph(path, schema):
             return tf.placeholder(

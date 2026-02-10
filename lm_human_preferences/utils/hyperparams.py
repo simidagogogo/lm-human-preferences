@@ -13,9 +13,11 @@ class HParams:
     They also need to be annotated with @dataclass.
     """
     def parse_json(self, s: str):
+        """从json字符串中解析参数"""
         self.override_from_nested_dict(json.loads(s))
         
     def override_from_json_file(self, filename):
+        """从json文件中解析参数"""
         if filename.startswith('gs://'):
             hparams_str = gcs.download_contents(filename)
         else:
@@ -52,11 +54,13 @@ class HParams:
 
     def override_from_dict(self, flat_dict, separator='.'):
         """
+        利用扁平化的字典来覆盖当前的配置树, 是一个功能强大的配置注入器
         Overrides values from a dict like {'x.y': 1, 'name': "foobar"}.
         Treats keys with dots as paths into nested HParams.
         Values should be parsed already.
         """
-        # Parse 'on' and 'off' values.
+        
+        # 1.Parse 'on' and 'off' values.
         typemap = _type_map(type(self), separator=separator)
         flat_dict_parsed = {}
         for flat_k, v in flat_dict.items():
@@ -69,7 +73,8 @@ class HParams:
                 parsed_v = v
             flat_dict_parsed[flat_k] = parsed_v
 
-        # Expand implicit nested 'on' values. For instance, {'x.y': 'on'} should mean {'x': 'on', 'x.y': 'on'}.
+        # 2.Expand implicit nested 'on' values. 
+        # For instance, {'x.y': 'on'} should mean {'x': 'on', 'x.y': 'on'}.
         flat_dict_expanded = {}
         for flat_k, v in flat_dict_parsed.items():
             flat_dict_expanded[flat_k] = v
@@ -78,11 +83,14 @@ class HParams:
                 parts = flat_k.split(separator)
                 prefix = parts[0]
                 for i in range(1, len(parts)):
+                    # 确保在设置子属性之前通往该属性的所有父级对象都已经存在且被正确初始化
                     if prefix not in flat_dict_expanded:
                         flat_dict_expanded[prefix] = _type_to_class(typemap[prefix])()
                     prefix += separator + parts[i]
 
-        # Set all the values. The sort ensures that outer classes get initialized before their fields.
+        # 3.Set all the values. 
+        # The sort ensures that outer classes get initialized before their fields.
+        # 通过排序实现依赖关系管理: 父节点总是优于子节点被处理
         for flat_k in sorted(flat_dict_expanded.keys()):
             v = flat_dict_expanded[flat_k]
             *ks, f = flat_k.split(separator)
@@ -91,7 +99,7 @@ class HParams:
                 try:
                     hp = getattr(hp, k)
                 except AttributeError:
-                    raise AttributeError(f"{hp} {'(' + separator.join(ks[:i]) + ') ' if i else ''}has no field '{k}'")
+                    raise AttributeError(f"{hp} {'(' + separator.join(ks[:i]) + ') ' if i else ''} has no field '{k}'")
             try:
                 setattr(hp, f, v)
             except AttributeError:
@@ -99,20 +107,22 @@ class HParams:
 
     def override_from_nested_dict(self, nested_dict):
         """
-        从json.loads()得到的nested_dict中, 提取出每个key的value, 然后设置到self中
+        从dict中解析参数, 然后设置到self中
         """
         for k, v in nested_dict.items():
             if isinstance(v, dict):
-                # 如果当前self.k还未创建, 先调用_type_to_class得到具体class, 然后new一个实例
                 if getattr(self, k) is None:
                     cls = _type_to_class(_get_field(self, k).type)
                     setattr(self, k, cls())
-                # 如果当前self.k已创建, 则调用其override_from_nested_dict方法
                 getattr(self, k).override_from_nested_dict(v)
             else:
                 setattr(self, k, v)
 
     def to_nested_dict(self):
+        """
+        将将自定义Dataclass对象(及其所有嵌套的子对象)转换成Python字典. 
+        方便后续转存为JSON、YAML或打印日志
+        """
         d = {}
         for f in fields(self):
             fieldval = getattr(self, f.name)
@@ -122,6 +132,9 @@ class HParams:
         return d
 
     def validate(self, *, prefix=''):
+        """
+        深度、严格的类型检查机制
+        """
         assert is_dataclass(self), f"You forgot to annotate {type(self)} with @dataclass"
         for f in fields(self):
             fieldval = getattr(self, f.name)
@@ -149,6 +162,7 @@ def is_hparam_type(ty):
 def _is_union_type(ty):
     """
     判断一个类型是否为typing.Union的快速方法
+    Note: Optional[T]是Union[T, None]的语法糖, 也返回True
     """
     return getattr(ty, '__origin__', None) is typing.Union
 
@@ -191,6 +205,9 @@ def _can_distinguish_unambiguously(type_set):
 
 
 def _parse_typed_value(ty, s):
+    """
+    将字符串转换为具体类型的值
+    """
     if ty is str:
         return s
     elif ty in (int, float):
@@ -227,6 +244,7 @@ def _parse_typed_value(ty, s):
 
 
 def _get_field(data, fieldname):
+    """获取dataclass中某个Field的元数据对象"""
     matching_fields = [f for f in fields(data) if f.name == fieldname]
     if len(matching_fields) != 1:
         raise AttributeError(f"couldn't find field '{fieldname}' in {data}")
@@ -234,6 +252,7 @@ def _get_field(data, fieldname):
 
 
 def _update_disjoint(dst: dict, src: dict):
+    """字典合并"""
     for k, v in src.items():
         assert k not in dst
         dst[k] = v
@@ -242,7 +261,7 @@ def _update_disjoint(dst: dict, src: dict):
 @lru_cache()
 def _type_map(ty, separator):
     """
-    用于递归提取dataclass(及其嵌套)的字段类型映射表的工具函数
+    用于递归提取dataclass(及其嵌套)的字段类型映射表的工具函数, 为分层配置结构建立索引
     """
     typemap = {} # name->type
     for f in fields(ty):
@@ -262,7 +281,8 @@ def _type_map(ty, separator):
 
 def _type_to_class(ty):
     """
-    Extract a constructible class from a type. For instance, `typing.Optional[int]` gives `int`
+    Extract a constructible class from a type. 
+    For instance, `typing.Optional[int]` gives `int`
     """
     if _is_union_type(ty):
         # Only typing.Optional supported: must be of form typing.Union[ty, None]

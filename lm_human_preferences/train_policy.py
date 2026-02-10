@@ -37,49 +37,59 @@ class AdaptiveKLParams(hyperparams.HParams):
 
 @dataclass
 class RewardHParams(hyperparams.HParams):
-    kl_coef: float = 0.2
-    adaptive_kl: Optional[AdaptiveKLParams] = None
-    trained_model: Optional[str] = None
-    train_new_model: Optional[train_reward.HParams] = None
+    """
+    奖励函数相关参数
+    """
+    kl_coef: float = 0.2                                    # KL散度系数，正则化奖励以避免策略与参考策略偏离过大
+    adaptive_kl: Optional[AdaptiveKLParams] = None          # 自适应KL参数，可选；控制动态调整KL系数
+    trained_model: Optional[str] = None                     # 训练模型的路径/标识(用于直接加载)
+    train_new_model: Optional[train_reward.HParams] = None  # 新模型的训练参数（若需重新训练）
 
     def validate(self, *, prefix=''):
+        """
+        必须在“已有模型(trained_model)”与“用新参数训练新模型(train_new_model)”两者中选择其一，
+        不能同时选择，也不能两者都不选，否则训练/推理过程无法使用奖励模型。
+        """
         super().validate(prefix=prefix)
-        # 必须从“已有模型(trained）”与“要用新配置重新训练新模型(train_new)”二选一
-        # 不能都选, 也不能都不选, 否则训练/推理就没东西可用
         assert self.trained_model is None or self.train_new_model is None, 'Cannot use trained_model and train new model'
         assert self.trained_model is not None or self.train_new_model is not None, 'Need either trained_model or to train a new model'
 
-
+    
 @dataclass
 class PpoHParams(hyperparams.HParams):
-    total_episodes: int = 2000000
-    batch_size: int = 64
-    nminibatches: int = 1
-    noptepochs: int = 4
-    lr: float = 5e-6
-    vf_coef: float = .1
-    cliprange: float = .2
-    cliprange_value: float = .2
-    gamma: float = 1
-    lam: float = 0.95
-    whiten_rewards: bool = True
+    total_episodes: int = 2000000  # 总训练回合数（采集的数据总量），决定整体训练多充分
+    batch_size: int = 64           # 每个更新周期（epoch）的采样批次大小
+    nminibatches: int = 1          # 一个 batch 被分成几个mini batch进行多次梯度更新
+    noptepochs: int = 4            # 每个 batch 被重复优化几次（epoch），即在同一数据上用策略优化器走多少遍
+    lr: float = 5e-6               # 学习率，影响每一步参数调整的幅度
+    vf_coef: float = .1            # Value函数（价值网络）损失的系数，在损失函数中占多大比重
+    cliprange: float = .2          # 策略更新时的裁剪范围，防止新旧策略差异过大，保障训练稳定
+    cliprange_value: float = .2    # 价值网络更新的裁剪范围，防止value估值剧烈震荡
+    gamma: float = 1               # 奖励的折扣因子，值越小越关注短期回报，越大越关注长远回报
+    lam: float = 0.95              # 广义优势估计（GAE）的lambda值，权衡短期与长期优势
+    whiten_rewards: bool = True    # 是否对奖励进行标准化（归一化到均值为0、方差为1），有助于训练稳定
 
 
 @dataclass
 class HParams(hyperparams.HParams):
-    run: train_reward.RunHParams = field(default_factory=train_reward.RunHParams)
-
-    task: lm_tasks.TaskHParams = field(default_factory=lm_tasks.TaskHParams)
-    rewards: RewardHParams = field(default_factory=RewardHParams)
-    ppo: PpoHParams = field(default_factory=PpoHParams)
+    """
+    PPO训练整体的高层参数设置
+    """
+    run: train_reward.RunHParams = field(default_factory=train_reward.RunHParams)  # 训练运行相关参数
+    task: lm_tasks.TaskHParams = field(default_factory=lm_tasks.TaskHParams)       # 语言模型任务相关参数
+    rewards: RewardHParams = field(default_factory=RewardHParams)                  # 奖励函数相关参数
+    ppo: PpoHParams = field(default_factory=PpoHParams)                            # PPO算法相关参数
 
     def validate(self, *, prefix=''):
+        # 调用父类的超参数校验
         super().validate(prefix=prefix)
-        # NOTE: must additionally divide by # ranks
+        
+        # 计算minibatch大小: 必须能被nminibatches整除
+        # NOTE: 这里需要除以总ranks数（分布式训练用，暂未体现）
         minibatch_size = utils.exact_div(self.ppo.batch_size, self.ppo.nminibatches)
         if self.ppo.whiten_rewards:
-            assert minibatch_size >= 8, \
-                f"Minibatch size {minibatch_size} is insufficient for whitening in PPOTrainer.loss"
+            # PPO的whiten_rewards依赖较大样本，若最小批次太小会报错
+            assert minibatch_size >= 8, f"Minibatch size {minibatch_size} is insufficient for whitening in PPOTrainer.loss"
 
 
 def nupdates(hparams):
@@ -262,14 +272,14 @@ class PPOTrainer():
         per_rank_rollout_batch_size = utils.exact_div(hparams.ppo.batch_size, comm.Get_size())
         per_rank_minibatch_size = utils.exact_div(per_rank_rollout_batch_size, hparams.ppo.nminibatches)
 
-        @utils.graph_function(
-            rollouts=dict(
-                queries=Schema(tf.int32, (per_rank_minibatch_size, query_length)),
-                responses=Schema(tf.int32, (per_rank_minibatch_size, response_length)),
-                values=Schema(tf.float32, (per_rank_minibatch_size, response_length)),
-                logprobs=Schema(tf.float32, (per_rank_minibatch_size, response_length)),
-                rewards=Schema(tf.float32, (per_rank_minibatch_size, response_length)),
-            ))
+        @utils.graph_function(rollouts=dict(
+            queries=Schema(tf.int32, (per_rank_minibatch_size, query_length)),
+            responses=Schema(tf.int32, (per_rank_minibatch_size, response_length)),
+            values=Schema(tf.float32, (per_rank_minibatch_size, response_length)),
+            logprobs=Schema(tf.float32, (per_rank_minibatch_size, response_length)),
+            rewards=Schema(tf.float32, (per_rank_minibatch_size, response_length)),
+        ))
+
 
         def train_minibatch(rollouts):
             """
@@ -287,6 +297,7 @@ class PPOTrainer():
                 comm=self.comm
             )
             return ppo_train_op, stats
+
 
         def train(rollouts):
             """
@@ -381,6 +392,7 @@ class PPOTrainer():
                 record_op = tf.no_op()
             return record_op, stats
         self.record_step_stats = record_step_stats
+
 
     def print_samples(self, queries, responses, scores, logprobs, ref_logprobs):
         """
@@ -517,7 +529,9 @@ class PPOTrainer():
             Clipping: 使用了 vpredclipped，防止 Value Function 更新过猛。
             """
             vf_loss = .5 * tf.reduce_mean(tf.maximum(vf_losses1, vf_losses2))
-            vf_clipfrac = tf.reduce_mean(tf.cast(tf.greater(vf_losses2, vf_losses1), tf.float32))
+            vf_clipfrac = tf.reduce_mean(
+                tf.cast(tf.greater(vf_losses2, vf_losses1), tf.float32)
+            )
 
             logprob = outputs['logprobs']
             ratio = tf.exp(logprob - old_logprob)
@@ -550,8 +564,12 @@ class PPOTrainer():
                 loss=dict(policy=pg_loss, value=vf_loss, total=loss),
                 policy=dict(entropy=entropy, approxkl=approxkl, clipfrac=pg_clipfrac),
                 returns=dict(mean=return_mean, var=return_var),
-                val=dict(vpred=tf.reduce_mean(vpred), error=tf.reduce_mean((vpred - returns) ** 2),
-                         clipfrac=vf_clipfrac, mean=value_mean, var=value_var)
+                val=dict(vpred=tf.reduce_mean(vpred), 
+                         error=tf.reduce_mean((vpred - returns) ** 2),
+                         clipfrac=vf_clipfrac, 
+                         mean=value_mean, 
+                         var=value_var
+                    )
             )
             return loss, utils.flatten_dict(stats, sep='/')
 
@@ -627,6 +645,7 @@ def train(hparams: HParams):
                 json.dump(m.encoding.name, f, indent=2)
 
         utils.set_mpi_seed(hparams.run.seed)
+        
         # 
         score_model = TrainedRewardModel(
             hparams.rewards.trained_model, 

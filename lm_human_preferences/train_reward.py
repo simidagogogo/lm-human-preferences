@@ -64,8 +64,10 @@ def round_down_to_multiple(n, divisor):
 
 
 def download_labels(source, label_type, question_schemas, total_labels, comm):
-    schemas = {**question_schemas, **label_type.label_schemas()}
-
+    schemas = {
+        **question_schemas, 
+        **label_type.label_schemas()
+    }
     """
     if self.is_root:
         with tf.device('cpu:0'):
@@ -99,6 +101,9 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
 
 
 class RewardModelTrainer():
+    """
+    RewardModelTrainer有两个, 什么区别?
+    """
     def __init__(self, *, reward_model, policy, query_sampler, hparams, comm):
         self.reward_model = reward_model
         self.policy = policy
@@ -129,13 +134,27 @@ class RewardModelTrainer():
         """
 
         with tf.device(None), tf.device('/cpu:0'):
-            with tf.variable_scope('label_buffer', use_resource=True, initializer=tf.zeros_initializer):
-                self.train_buffer = utils.SampleBuffer(capacity=hparams.labels.num_train, schemas=data_schemas)
+            with tf.variable_scope(
+                'label_buffer', 
+                use_resource=True, 
+                initializer=tf.zeros_initializer
+            ):
+                self.train_buffer = utils.SampleBuffer(
+                    capacity=hparams.labels.num_train, 
+                    schemas=data_schemas
+                )
 
         with tf.name_scope('train_reward'):
-            summary_writer = utils.get_summary_writer(self.hparams.run.save_dir, subdir='reward_model', comm=comm)
+            summary_writer = utils.get_summary_writer(
+                self.hparams.run.save_dir, 
+                subdir='reward_model', 
+                comm=comm
+            )
 
-            @utils.graph_function(indices=Schema(tf.int32, (None,)), lr=Schema(tf.float32, ()))
+            @utils.graph_function(
+                indices=Schema(tf.int32, (None,)), 
+                lr=Schema(tf.float32, ())
+            )
             def train_batch(indices, lr):
                 with tf.name_scope('minibatch'):
                     minibatch = self.train_buffer.read(indices)
@@ -160,6 +179,7 @@ class RewardModelTrainer():
                             use_resource=True
                         )
                         step = step_var.assign_add(1) - 1
+                        
                         stats = utils.FlatStats.from_dict(stats).map_flat(partial(utils.mpi_allreduce_mean, comm=comm)).as_dict()
                         train_stat_op = utils.record_stats(
                             stats=stats, 
@@ -249,6 +269,8 @@ class RewardModelTrainer():
             self.log_stats_after_normalize(stats)
 
     def train(self):
+        """
+        """
         labels = download_labels(
             self.hparams.labels.source,
             label_type=self.label_type,
@@ -297,22 +319,21 @@ def train(hparams: HParams):
         
         """
         model_hparams:
-            attn_pdrop: 0.1
-            embd_pdrop: 0.1
-            head_pdrop: 0.1
             n_ctx: 1024
             n_embd: 768
             n_head: 12
             n_layer: 12
             n_vocab: 50257
+            attn_pdrop: 0.1
+            embd_pdrop: 0.1
+            head_pdrop: 0.1
             resid_pdrop: 0.1
         """
         hyperparams.dump(m.hparams(), name='model_hparams')
 
         comm = MPI.COMM_WORLD
-        # Reference Policy, 参考策略或基准策略
-        # 在RLHF中训练主策略policy同时, 还要保留一个基准策略ref_policy, 用于评价当前主策略是否偏离原始分布过远
-        # PPO算法的 KL penalty 项常用 ref_policy 做为 KL基准，鼓励新策略不要偏离原始模型太远
+        
+        # PPO算法中KL_penalty常用Reference Policy做为KL基准, 鼓励新策略不要偏离原始模型太远
         ref_policy = Policy(
             m, 
             scope='ref_policy',
@@ -344,10 +365,9 @@ def train(hparams: HParams):
         )
 
         save_dir = hparams.run.save_dir
-        print(f"save_dir: {save_dir}")
-        # save_dir: /tmp/save/train_reward/testdesc-2601032319
         if comm.Get_rank() == 0 and save_dir:
             print(f"Will save to {save_dir}")
+            # save_dir: /tmp/save/train_reward/testdesc-2601032319
             saver = tf.train.Saver(max_to_keep=20, save_relative_paths=True)
             checkpoint_dir = os.path.join(save_dir, 'reward_model/checkpoints/model.ckpt')
             print(f"checkpoint_dir: {checkpoint_dir}")
@@ -386,6 +406,6 @@ def train(hparams: HParams):
         with utils.mpi_session() as sess:
             init_ops.run()
             sync_models()
-            reward_trainer.train()
+            reward_trainer.train() # TODO
             if saver:
                 saver.save(sess, checkpoint_dir)

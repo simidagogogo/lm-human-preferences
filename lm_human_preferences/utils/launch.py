@@ -6,6 +6,7 @@ from functools import partial
 import cloudpickle
 import fire
 
+
 def launch(name, f, *, namespace='safety', mode='local', mpi=1) -> None:
     print(f"debug. enter launch(). name: {name}, f: {f}")
     """
@@ -38,6 +39,7 @@ def launch(name, f, *, namespace='safety', mode='local', mpi=1) -> None:
             subprocess.check_call(['mpiexec', '-n', str(mpi), 'python', '-c', 'import sys; import pickle; pickle.loads(open("/tmp/pickle_fn", "rb").read())()'])
         return
     raise Exception('Other modes unimplemented!')
+
 
 def parallel(jobs, mode):
     print(f"debug. inter parallel({jobs}, {mode})")
@@ -74,6 +76,7 @@ def parallel(jobs, mode):
             futures = [executor.submit(job) for job in jobs]
             for f in futures:
                 f.result()
+
 
 def launch_trials(name, fn, trials, hparam_class, *, extra_hparams=None, dry_run=False, mpi=1, mode='local', save_dir=None):
     print(f"debug. enter launch_trials(). name: {name}, fn: {fn}, trials: {trials}, hparam_class: {hparam_class}, dry_run: {dry_run}, mpi: {mpi}, mode: {mode}")
@@ -113,6 +116,7 @@ def launch_trials(name, fn, trials, hparam_class, *, extra_hparams=None, dry_run
             jobs.append(partial(launch, job_name, trial_fn, mpi=mpi, mode=mode))
 
     parallel(jobs, mode=mode)
+
 
 def main(commands_dict):
     """
