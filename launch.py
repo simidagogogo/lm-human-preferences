@@ -59,6 +59,9 @@ summarize_tldr_task = combos(
 )
 
 def get_train_reward_experiments():
+    """
+    reward模型训练配置
+    """
     _shared = combos(
         bind('labels.type', 'best_of_4'),
         bind('normalize_after', True),
@@ -121,6 +124,9 @@ def get_train_reward_experiments():
 
 
 def get_experiments():
+    """
+    policy模型训练配置
+    """
     train_reward_experiments = get_train_reward_experiments()
 
     _books_task = combos(
@@ -185,11 +191,13 @@ def get_experiments():
         bind('rewards.whiten', False),
         bind('run.seed', 1)
     )
-
     return locals()
 
 # 训练策略模型
 def launch_train_policy(exp, name, dry_run=False, mpi=8, mode='local', save_dir='/tmp/save/train_policy', **extra_hparams):
+    """
+    训练policy模型
+    """
     experiment_dict = get_experiments()
     try:
         trials = experiment_dict[exp]
@@ -208,8 +216,11 @@ def launch_train_policy(exp, name, dry_run=False, mpi=8, mode='local', save_dir=
         dry_run=dry_run
     )
 
-# 训练奖励模型
+
 def launch_train_reward(exp, name, dry_run=False, mpi=8, mode='local', save_dir='/tmp/save/train_reward', **extra_hparams):
+    """
+    训练reward模型
+    """
     # print(f"debug. enter launch_train_reward(). exp: {exp}, name: {name}, mpi: {mpi}, mode: {mode}, dry_run: {dry_run}")
     experiment_dict = get_train_reward_experiments()
     try:
@@ -231,6 +242,7 @@ def launch_train_reward(exp, name, dry_run=False, mpi=8, mode='local', save_dir=
 
 
 if __name__ == '__main__':
-    launch.main(
-        dict(train_policy=launch_train_policy, train_reward=launch_train_reward)
-    )
+    launch.main(dict(
+        train_policy=launch_train_policy, 
+        train_reward=launch_train_reward
+    ))

@@ -9,6 +9,11 @@ class TrainedModel():
     已训练的模型
     """
     def __init__(self, name, *, savedir=None, scope=None):
+        """
+        @name: 模型名称. 如124M
+        @savedir: 模型保存路径
+        @scope: 
+        """
         self.name = name
         self.scope = scope
         if savedir is None:
@@ -26,17 +31,13 @@ class TrainedModel():
             ├── model.ckpt.index
             └── model.ckpt.meta
             
-            这三个文件是配套一起使用的，它们共同组成了一个完整的 TensorFlow checkpoint（检查点），也就是你的模型保存点。
-            三个文件的作用说明
+            model.ckpt.三个文件配套使用, 共同组成完整TF checkpoint: 
             1. model.ckpt.data-00000-of-00001
-            这是存储模型参数（权重、偏置等数值数据）的主文件。
-            如果模型很大，通常会被分为多个 data 文件（比如 data-00000-of-00002, data-00001-of-00002），但小模型通常只有一个。
+            存储模型参数(权重、偏置等数值数据)的主文件. 模型很大时通常会被分为多个data文件
             2. model.ckpt.index
-            这个文件是一个索引，描述了权重在 .data 文件中的映射和位置。
-            没有 index 就无法找到和读取参数数据。
+            索引, 描述了权重在.data文件中的映射和位置. 没有index就无法找到和读取参数数据
             3. model.ckpt.meta
-            这个文件记录了计算图结构（ops、variable scope、操作关系等）。
-            主要用来描述模型的结构和定义（不是权重数据）。
+            计算图结构(ops、variable scope、操作关系等). 用来描述模型的结构和定义
 
             (base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/gpt-2-models/models/124M# du -sh *
             4.0K    checkpoint
@@ -51,11 +52,11 @@ class TrainedModel():
             
             (base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/gpt-2-models/models/124M# cat hparams.json
             {
-            "n_vocab": 50257,
-            "n_ctx": 1024,
-            "n_embd": 768,
-            "n_head": 12,
-            "n_layer": 12
+                "n_vocab": 50257,
+                "n_ctx": 1024,
+                "n_embd": 768,
+                "n_head": 12,
+                "n_layer": 12
             }
             """
             if (os.path.exists(os.path.join(local_model_path, 'hparams.json')) or os.path.exists(os.path.join(local_model_path, 'checkpoint'))):
@@ -105,7 +106,7 @@ class TrainedModel():
     def init_op(self, params, new_scope):
         """
         用于将checkpoint中保存的模型权重加载到当前模型权重中(即参数迁移/热启动, 模型可直接基于训练好的权重继续训练或微调)
-        @params: 需要被初始化赋值的ckpt变量名称->当前模型对象变量映射
+        @params: 需要被初始化赋值的 ckpt变量名称->变量
         @new_scope: 当前policy/model变量命名空间(用于处理变量名和checkpoint的匹配)
         
         主要功能
@@ -114,25 +115,19 @@ class TrainedModel():
         
         典型场景
         加载主模型参数到reward model或微调模型. 只初始化部分参数, 剩下可随机初始化
-        
-        调试帮助
-        如果checkpoint里缺少部分参数, 会在日志里告诉你, 方便排查变量命名问题
-        如果参数shape不匹配直接报错(防止 silent bug)
         """
-        
         # 参数字典不为空, 否则后面操作都没意义
         assert params
         
         params = dict(**params) # 深拷贝
         checkpoint = self.checkpoint()
         available = tf.train.list_variables(checkpoint)
-        print(f"len(available): {len(available)}")
-        # for i, item in enumerate(available):
-        #     # item形如('model/h1/attn/c_attn/w', [1, 768, 2304]), 详见: checkpoint_variable.md
-        #     print(f"available[{i}]: {item}")
-
-        # 映射字典: checkpoint中变量名->当前模型变量对象(要求模型名/shape匹配)
         
+        # param形如('model/h1/attn/c_attn/w', [1, 768, 2304]), 详见: checkpoint_variable.md
+        # for i, param in enumerate(available):
+        #     print(f"available[{i}]: {param}")
+
+        # 合法的可从ckpt初始化的变量名->变量对象
         unchanged = {}
         for name, shape in available:
             our_name = name

@@ -38,28 +38,11 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
     
     注意: save_dir 和 model_name 二选一。如果提供 model_name，则使用原始 GPT-2 模型和默认配置。
     """
-    import json
-    with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
-        f.write(json.dumps(
-            {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:28', 'message': 'sample_policy entry', 
-             'data': {'save_dir': save_dir, 'model_name': model_name, 'savescope': savescope, 'temperature': temperature, 'seed': seed, 'batch_size': batch_size, 'nsamples': nsamples}, 
-             'timestamp': int(__import__('time').time() * 1000)
-            }
-        ))
-        f.write("\n")
-    
     comm = MPI.COMM_WORLD
-    
     # 支持两种模式: 使用训练后的策略模型, 或使用原始 GPT-2 模型
     if model_name is not None:
         # 模式2：使用原始 GPT-2 模型，使用默认配置
-        # #region agent log
-        with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:45', 'message': 'using raw GPT-2 model', 'data': {'model_name': model_name}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
-        # #endregion
-        
         # 创建默认任务配置(基于launch.py中的books_task)
-        hparams = train_policy.HParams()
         task = lm_tasks.TaskHParams(
             query_length=64,
             query_dataset='books',
@@ -74,6 +57,7 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
         )
         task.policy.temperature = temperature
         task.policy.initial_model = model_name
+        hparams = train_policy.HParams()
         hparams.task = task
         
         """
@@ -126,21 +110,8 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
         model_scope = None  # 原始模型不需要 scope 前缀
     elif save_dir is not None:
         # 模式1：使用训练后的策略模型
-        with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps(
-                {'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'A', 'location': 'sample.py:72', 'message': 'using trained policy model', 
-                 'data': {'save_dir': save_dir}, 'timestamp': int(__import__('time').time() * 1000)}
-            ))
-            f.write("\n")
-        
         hparams = train_policy.HParams()
         hparams_file = os.path.join(save_dir, 'train_policy_hparams.json')
-
-        # region agent log
-        with open('/root/PycharmProjects/lm-human-preferences/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({'sessionId': 'debug-session', 'runId': 'run1', 'hypothesisId': 'B', 'location': 'sample.py:78', 'message': 'before override_from_json_file', 'data': {'hparams_file': hparams_file, 'file_exists': os.path.exists(hparams_file)}, 'timestamp': int(__import__('time').time() * 1000)}) + '\n')
-        # endregion
-
         hparams.override_from_json_file(hparams_file)
         hyperparams.dump(hparams)
         task = hparams.task
@@ -224,13 +195,11 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
 
         # 创建TF会话
         with utils.mpi_session() as sess:
-            # 变量初始化
-            init_ops.run()
+            init_ops.run()  # 变量初始化
             
             @utils.graph_function()
             def sample_queries():
                 return query_sampler()['tokens']
-            
             tf.get_default_graph().finalize()
 
             """
@@ -266,8 +235,6 @@ if __name__ == '__main__':
 
 """
 ./sample.py sample --save_dir gs://jeffwu-rcall/results/safety/lmhf-sent-69c5170-1909161359/ --mpi 8
-
 pipenv run ./sample.py sample --model_name 124M --mpi 1 --batch_size 2 --nsamples 4
-
 pipenv run ./sample.py sample --save_dir /path/to/trained/policy --mpi 1
 """

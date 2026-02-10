@@ -1,5 +1,43 @@
 #!/usr/bin/env python3
-"""Transformer model tests."""
+"""
+Transformer model tests.
+
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences/lm_human_preferences/language# pipenv run ./test_model.py 
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/framework/op_def_library.py:263: colocate_with (from tensorflow.python.framework.ops) is deprecated and will be removed in a future version.
+Instructions for updating:
+Colocations handled automatically by placer.
+WARNING:tensorflow:From /root/.local/share/virtualenvs/lm-human-preferences-XpxZn-hG/lib/python3.7/site-packages/tensorflow/python/framework/function.py:1007: calling Graph.create_op (from tensorflow.python.framework.ops) with compute_shapes is deprecated and will be removed in a future version.
+Instructions for updating:
+Shapes are always computed; don't use the compute_shapes as it has no effect.
+[__call__]. results: {'present': <tf.Tensor 'model_1/stack:0' shape=(4, 2, 2, 3, 3, 1) dtype=float32>, 'h': <tf.Tensor 'model_1/ln_f/add_1:0' shape=(4, 3, 3) dtype=float32>, 'lm_all_losses': <tf.Tensor 'model_1/strided_slice_3:0' shape=(4, 2) dtype=float32>, 'lm_logits': <tf.Tensor 'model_1/Reshape_3:0' shape=(4, 3, 10) dtype=float32>, 'lm_losses': <tf.Tensor 'model_1/Mean:0' shape=(4,) dtype=float32>}
+[__call__]. results: {'present': <tf.Tensor 'stack:0' shape=(4, 2, 2, 3, 5, 1) dtype=float32>, 'h': <tf.Tensor 'index_each:0' shape=(4, 5, 3) dtype=float32>, 'lm_all_losses': <tf.Tensor 'strided_slice_6:0' shape=(4, 4) dtype=float32>, 'lm_logits': <tf.Tensor 'Reshape_3:0' shape=(4, 5, 10) dtype=float32>, 'lm_losses': <tf.Tensor 'Mean:0' shape=(4,) dtype=float32>}
+2026-02-10 21:02:48.006392: I tensorflow/core/platform/cpu_feature_guard.cc:141] Your CPU supports instructions that this TensorFlow binary was not compiled to use: AVX2 AVX512F FMA
+2026-02-10 21:02:48.029735: I tensorflow/core/platform/profile_utils/cpu_utils.cc:94] CPU Frequency: 2699995000 Hz
+2026-02-10 21:02:48.029944: I tensorflow/compiler/xla/service/service.cc:150] XLA service 0x13a43040 executing computations on platform Host. Devices:
+2026-02-10 21:02:48.029963: I tensorflow/compiler/xla/service/service.cc:158]   StreamExecutor device (0): <undefined>, <undefined>
+[[1]]
+[[1]]
+[[1 1]]
+[[1 1]]
+[[1 1 1]]
+[[1 1 1]]
+[[1 0]
+ [1 1]]
+[[1 0]
+ [1 1]]
+[[1 1 0]
+ [1 1 1]]
+[[1 1 0]
+ [1 1 1]]
+[[1 0 0]
+ [1 1 0]
+ [1 1 1]]
+[[1 0 0]
+ [1 1 0]
+ [1 1 1]]
+[__call__]. results: {'present': <tf.Tensor 'model_1_1/stack:0' shape=(2, 2, 2, 3, ?, 3) dtype=float32>, 'h': <tf.Tensor 'model_1_1/ln_f/add_1:0' shape=(2, ?, 9) dtype=float32>, 'lm_all_losses': <tf.Tensor 'model_1_1/strided_slice_3:0' shape=(2, ?) dtype=float32>, 'lm_logits': <tf.Tensor 'model_1_1/Reshape_3:0' shape=(2, ?, ?) dtype=float32>, 'lm_losses': <tf.Tensor 'model_1_1/Mean:0' shape=(2,) dtype=float32>}
+[__call__]. results: {'present': <tf.Tensor 'other_scope/stack:0' shape=(2, 2, 2, 3, ?, 3) dtype=float32>, 'h': <tf.Tensor 'other_scope/ln_f/add_1:0' shape=(2, ?, 9) dtype=float32>, 'lm_all_losses': <tf.Tensor 'other_scope/strided_slice_5:0' shape=(2, ?) dtype=float32>, 'lm_logits': <tf.Tensor 'other_scope/Reshape_3:0' shape=(2, ?, ?) dtype=float32>, 'lm_losses': <tf.Tensor 'other_scope/Mean:0' shape=(2,) dtype=float32>}
+"""
 
 import numpy as np
 import tensorflow as tf
