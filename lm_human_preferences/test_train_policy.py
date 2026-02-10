@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 
+"""
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences/lm_human_preferences# pipenv run ./test_train_policy.py 
+name: main, self.base_path: /root/gpt-2-models/encodings/main
+name: main, self.encoder_path: /root/gpt-2-models/encodings/main/encoder.json
+name: main, self.bpe_path: /root/gpt-2-models/encodings/main/vocab.bpe
+name: test, self.base_path: gs://gpt-2/encodings/test
+"""
+
 import tempfile
 from lm_human_preferences import train_policy
 
