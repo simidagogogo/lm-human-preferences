@@ -366,10 +366,10 @@ class Encoding:
         bpe_data = read_file(self.bpe_path).decode()        
         bpe_merges = [tuple(merge_str.split()) for merge_str in bpe_data.split("\n")[1:-1]]
         
-        print(f"len(encoder_dict): {len(encoder_dict)}")
-        print(f"encoder_dict[:5]: {dict(list(encoder_dict.items())[:5])}")
-        print(f"len(bpe_merges): {len(bpe_merges)}")
-        print(f"bpe_merges[:5]: {bpe_merges[:5]}")
+        # print(f"len(encoder_dict): {len(encoder_dict)}")
+        # print(f"encoder_dict[:5]: {dict(list(encoder_dict.items())[:5])}")
+        # print(f"len(bpe_merges): {len(bpe_merges)}")
+        # print(f"bpe_merges[:5]: {bpe_merges[:5]}")
         # len(encoder_dict): 50257
         # encoder_dict[:5]: {'!': 0, '"': 1, '#': 2, '$': 3, '%': 4}
         # len(bpe_merges): 50000
