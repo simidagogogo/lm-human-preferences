@@ -127,9 +127,9 @@ class TrainedModel():
         checkpoint = self.checkpoint()
         available = tf.train.list_variables(checkpoint)
         print(f"len(available): {len(available)}")
-        for i, item in enumerate(available):
-            # item形如('model/h1/attn/c_attn/w', [1, 768, 2304]), 详见: checkpoint_variable.md
-            print(f"available[{i}]: {item}")
+        # for i, item in enumerate(available):
+        #     # item形如('model/h1/attn/c_attn/w', [1, 768, 2304]), 详见: checkpoint_variable.md
+        #     print(f"available[{i}]: {item}")
 
         # 映射字典: checkpoint中变量名->当前模型变量对象(要求模型名/shape匹配)
         
