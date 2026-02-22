@@ -38,10 +38,10 @@ class LabelHParams(hyperparams.HParams):
 
 @dataclass
 class RunHParams(hyperparams.HParams):
-    seed: Optional[int] = None
-    log_interval: int = 10
-    save_interval: int = 50
-    save_dir: Optional[str] = None
+    seed: Optional[int] = None      # 随机种子
+    log_interval: int = 10          # 日志频率
+    save_interval: int = 50         # 保存频率
+    save_dir: Optional[str] = None  # 保存目录
 
 
 @dataclass
@@ -58,10 +58,12 @@ class HParams(hyperparams.HParams):
     
     # Whether, before training, to normalize the rewards on the policy to the scales on the training buffer.
     # (For comparisons, just use mean 0, var 1.)
+    # 训练开始前, 把当前policy rollout的reward对齐到训练buffer的reward尺度, 主要为了训练稳定/公平
     normalize_before: bool = False
     
     # Whether, after training, to normalize the rewards on the ref policy to mean 0, var 1
     # (so the KL coefficient always has the same meaning).
+    # 训练结束后, 把ref policy的reward标准化到N(0,1)这种固定尺度, 主要为了让KL系数β的含义稳定、不同实验可比
     normalize_after: bool = False
 
     def validate(self, *, prefix=''):
@@ -70,6 +72,9 @@ class HParams(hyperparams.HParams):
 
 
 def round_down_to_multiple(n, divisor):
+    """
+    把整数n向下取整到divisor的整数倍. 让序列长度/批大小对齐到固定块大小
+    """
     return n - n % divisor
 
 
@@ -107,7 +112,9 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
 
     assert len(results) >= total_labels
     results = results[:total_labels]
-    return {k: [a[k] for a in results] for k in schemas.keys()}
+    return {
+        k: [a[k] for a in results] for k in schemas.keys()
+    }
 
 
 class RewardModelTrainer():
@@ -129,18 +136,17 @@ class RewardModelTrainer():
         )
 
         data_schemas = {
-            **self.question_schemas,
             **self.label_type.label_schemas(),
+            **self.question_schemas,
         }
-        print(f"data_schemas: {data_schemas}")
         """
         data_schemas: {
+            'best': Schema(dtype=tf.int32, shape=())},
             'query': Schema(dtype=tf.int32, shape=(64,)), 
             'sample0': Schema(dtype=tf.int32, shape=(24,)), 
             'sample1': Schema(dtype=tf.int32, shape=(24,)), 
             'sample2': Schema(dtype=tf.int32, shape=(24,)), 
             'sample3': Schema(dtype=tf.int32, shape=(24,)), 
-            'best': Schema(dtype=tf.int32, shape=())}
         """
 
         with tf.device(None), tf.device('/cpu:0'):

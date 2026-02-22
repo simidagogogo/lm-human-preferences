@@ -77,7 +77,7 @@ def get_train_reward_experiments():
         bind('rollout_batch_size', 512),    # 从策略模型采样响应时的批次大小（用于生成训练数据）
     )
 
-    # 任务1.  
+    # 任务1. 积极情感-风格化续写
     sentiment = combos(
         _books_task,
         bind('labels.source', 'https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/sentiment/offline_5k.json'),
@@ -85,7 +85,7 @@ def get_train_reward_experiments():
         bind('run.seed', 1)
     )
 
-    # 任务2.
+    # 任务2. 物理描述-风格化续写
     descriptiveness = combos(
         _books_task,
         bind('labels.source', 'https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json'),
@@ -93,7 +93,7 @@ def get_train_reward_experiments():
         bind('run.seed', 1)
     )
 
-    # 任务3.
+    # 任务3. CNN/Daily Mail摘要任务
     cnndm = combos(
         bind_nested('task', summarize_cnndm_task),
         _shared,
@@ -107,7 +107,7 @@ def get_train_reward_experiments():
         bind('run.seed', 1)
     )
 
-    # 任务4.
+    # 任务4. TL;DR摘要任务
     tldr = combos(
         bind_nested('task', summarize_tldr_task),
         _shared,
@@ -136,7 +136,7 @@ def get_experiments():
         bind('ppo.batch_size', 512),
     )
 
-    # 任务1
+    # 任务1. 积极情感-风格化续写
     sentiment = combos(
         _books_task,
         bind('rewards.kl_coef', 0.15),
@@ -148,7 +148,7 @@ def get_experiments():
         bind('run.seed', 1)
     )
 
-    # 任务2
+    # 任务2. 物理描述-风格化续写
     descriptiveness = combos(
         _books_task,
         bind('rewards.kl_coef', 0.15),
@@ -160,7 +160,7 @@ def get_experiments():
         bind('run.seed', 1)
     )
 
-    # 任务3
+    # 任务3. CNN/Daily Mail摘要任务
     cnndm = combos(
         bind_nested('task', summarize_cnndm_task),
         bind('rewards.train_new_model', 'on'),
@@ -176,7 +176,7 @@ def get_experiments():
         bind('run.seed', 1)
     )
 
-    # 任务4
+    # 任务4. TL;DR摘要任务
     tldr = combos(
         bind_nested('task', summarize_tldr_task),
         bind('rewards.train_new_model', 'on'),

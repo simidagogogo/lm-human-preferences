@@ -217,13 +217,8 @@ def flatten_dict(nested, sep='.'):
 
 @dataclass
 class Schema:
-    """
-    数据结构
-    dtype: 数据类型
-    shape: 数据形状
-    """
-    dtype: Any
-    shape: Tuple[Optional[int], ...] # ...表示不定长度, 同质类型
+    dtype: Any # 数据类型
+    shape: Tuple[Optional[int], ...] # 数据形状. ...表示不定长度, 同质类型
 
 
 def add_batch_dim(schemas, batch_size=None):
@@ -233,34 +228,44 @@ def add_batch_dim(schemas, batch_size=None):
 
 
 class SampleBuffer:
-    """A circular buffer for storing and sampling data.
+    """
+    A circular buffer for storing and sampling data.
 
     Data can be added to the buffer with `add`, and old data will be dropped.  If you need to
     control where the buffer is stored, wrap the constructor call in a `with tf.device` block:
 
-        with tf.device('cpu:0'):
-            buffer = SampleBuffer(...)
+    with tf.device('cpu:0'):
+        buffer = SampleBuffer(...)
     """
-
-    def __init__(self, *, capacity: int, schemas: Dict[str,Schema], name=None) -> None:
+    def __init__(self, *, capacity: int, schemas: Dict[str, Schema], name=None) -> None:
         with tf.variable_scope(name, 'buffer', use_resource=True, initializer=tf.zeros_initializer):
             self._capacity = tf.constant(capacity, dtype=tf.int32, name='capacity')
             self._total = tf.get_variable(
-                'total', dtype=tf.int32, shape=(), trainable=False, collections=[tf.GraphKeys.LOCAL_VARIABLES],
+                'total', 
+                dtype=tf.int32, 
+                shape=(), 
+                trainable=False, 
+                collections=[tf.GraphKeys.LOCAL_VARIABLES],
             )
             self._vars = {
                 n: tf.get_variable(
-                    n, dtype=s.dtype, shape=(capacity,) + s.shape, trainable=False,
+                    n, 
+                    dtype=s.dtype, 
+                    shape=(capacity, ) + s.shape, 
+                    trainable=False,
                     collections=[tf.GraphKeys.LOCAL_VARIABLES],
                 )
-                for n,s in schemas.items()
+                for n, s in schemas.items()
             }
 
     def add(self, **data):
-        """Add new data to the end of the buffer, dropping old data if we exceed capacity."""
+        """
+        Add new data to the end of the buffer, dropping old data if we exceed capacity.
+        """
         # Check input shapes
         if data.keys() != self._vars.keys():
             raise ValueError('data.keys() = %s != %s' % (sorted(data.keys()), sorted(self._vars.keys())))
+        
         first = next(iter(data.values()))
         pre = first.shape[:1]
         for k, d in data.items():
@@ -268,6 +273,7 @@ class SampleBuffer:
                 d.shape.assert_is_compatible_with(pre.concatenate(self._vars[k].shape[1:]))
             except ValueError as e:
                 raise ValueError('%s, key %s' % (e, k))
+        
         # Enqueue
         n = tf.shape(first)[0]
         capacity = self._capacity
@@ -278,13 +284,17 @@ class SampleBuffer:
         i3 = i0n % capacity
         slices = slice(i0, i1), slice(i2, i3)
         sizes = tf.stack([i1 - i0, i3 - i2])
-        assigns = [self._vars[k][s].assign(part)
-                   for k,d in data.items()
-                   for s, part in zip(slices, tf.split(d, sizes))]
+        assigns = [
+            self._vars[k][s].assign(part)
+            for k, d in data.items()
+            for s, part in zip(slices, tf.split(d, sizes))
+        ]
         return tf.group(assigns)
 
     def total(self):
-        """Total number of entries ever added, including those already discarded."""
+        """
+        Total number of entries ever added, including those already discarded.
+        """
         return self._total.read_value()
 
     def size(self):
@@ -324,7 +334,7 @@ class SampleBuffer:
 
 def entropy_from_logits(logits):
     pd = tf.nn.softmax(logits, axis=-1)
-    return tf.math.reduce_logsumexp(logits, axis=-1) - tf.reduce_sum(pd*logits, axis=-1)
+    return tf.math.reduce_logsumexp(logits, axis=-1) - tf.reduce_sum(pd * logits, axis=-1)
 
 
 def logprobs_from_logits(*, logits, labels):
@@ -353,7 +363,7 @@ def sample_from_logits(logits, dtype=tf.int32):
 
 def take_top_k_logits(logits, k):
     values, _ = tf.nn.top_k(logits, k=k)
-    min_values = values[:, :, -1, tf.newaxis]
+    min_values = values[:, :, -1, tf.newaxis] # tf.expand_dims
     return tf.where(
         logits < min_values,
         tf.ones_like(logits) * -1e10,
@@ -380,11 +390,12 @@ def take_top_p_logits(logits, p):
     cumulative_probs = tf.cumsum(tf.nn.softmax(sorted_logits, axis=-1), axis=-1)
     
     indices = tf.stack(
-        [tf.range(0, batch)[:, tf.newaxis],
-         tf.range(0, sequence)[tf.newaxis, :],
-         # number of indices to include
-         tf.maximum(tf.reduce_sum(tf.cast(cumulative_probs <= p, tf.int32), axis=-1) - 1, 0),],
-        axis=-1
+        [
+            tf.range(0, batch)[:, tf.newaxis], # tf.expand_dims
+            tf.range(0, sequence)[tf.newaxis, :],
+            # number of indices to include
+            tf.maximum(tf.reduce_sum(tf.cast(cumulative_probs <= p, tf.int32), axis=-1) - 1, 0),
+        ], axis=-1
     )
     min_values = tf.gather_nd(sorted_logits, indices)
     return tf.where(
@@ -648,10 +659,13 @@ def graph_function(**schemas: Schema):
 def pearson_r(x: tf.Tensor, y: tf.Tensor):
     assert x.shape.rank == 1
     assert y.shape.rank == 1
+    # 均值, 方差
     x_mean, x_var = tf.nn.moments(x, axes=[0])
     y_mean, y_var = tf.nn.moments(y, axes=[0])
-    cov = tf.reduce_mean((x - x_mean)*(y - y_mean), axis=0)
-    return cov / tf.sqrt(x_var * y_var)
+    # 计算协方差
+    cov = tf.reduce_mean((x - x_mean) * (y - y_mean), axis=0)
+    # 皮尔逊相关系数(标量)
+    return cov / (tf.sqrt(x_var * y_var) + 1e-12)
 
 
 def shape_list(x):
