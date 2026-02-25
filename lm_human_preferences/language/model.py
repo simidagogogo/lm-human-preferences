@@ -501,7 +501,8 @@ class Model:
             reuse=self.built, 
             auxiliary_name_scope=not self.built
         ):
-            self.built = True
+            # 只要调用一次, build状态就被改为True
+            self.built = True 
             results = {}
             batch, sequence = utils.shape_list(X)
             seed = tf.random.uniform(dtype=tf.int64, shape=[2], minval=-2**63, maxval=2**63-1)

@@ -152,6 +152,8 @@ def sample_policy(save_dir=None, model_name=None, savescope='policy', temperatur
             savedir=model_savedir, 
             scope=model_scope
         )
+
+        # 可逆分词器与编码器(ReversibleEncoder类的实例)
         encoder = m.encoding.get_encoder()
         
         """

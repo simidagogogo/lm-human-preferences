@@ -34,13 +34,15 @@ class Policy:
         @trained_model: 已经训练好的模型对象, 封装了编码器、超参数、初始化等接口, 本身并不直接forward输入
         @scope: 变量作用域名,控制变量的命名空间及共享
         @use_resource: 是否用resource变量
-        @embed_queries: 对输入queries进行变换(默认不变)
+        @embed_queries: 对输入queries进行变换(默认不变), 一般会拼接前缀和后缀
         @temperature: 采样温度,控制生成时的多样性(越大越随机)
         @is_root: 是否为主节点,和参数初始化有关(分布式场景)
-        @build_respond: False表示该参考策略只用于评估而非实际生成
+        @build_respond: False表示该ref_policy只用于评估, 而非实际生成
         """
         self.trained_model = trained_model
         self.model_hparams = trained_model.hparams()
+        
+        # 可逆分词器与编码器(ReversibleEncoder类的实例)
         self.encoder = self.trained_model.encoding.get_encoder()
         self.is_root = is_root
         self.use_resource = use_resource
@@ -73,7 +75,7 @@ class Policy:
 
     def get_encoder(self):
         """
-        返回模型编码器tokenizer, 用于字符串和token的转换
+        返回可逆分词器与编码器(ReversibleEncoder类的实例)
         """
         return self.encoder
 
@@ -175,6 +177,8 @@ class Policy:
     def respond_op(self, queries, length):
         """
         按输入的queries和采样长度, 生成模型的输出文本序列. 常用于生成式任务
+        @queries: 输入prompt
+        @length: 采样长度
         """
         contexts = self.embed_queries(queries)
         context_length = tf.shape(contexts)[1]
@@ -198,13 +202,15 @@ class Policy:
 
     def analyze_responses_op(self, queries, responses):
         """
-        基于一批 queries上下文 和 responses回复/候选 进行前向推断, 分析模型输出的各类指标(logprob、熵、价值等)以便于奖励建模或行为评估
+        基于一批 queries上下文 和 responses候选 进行前向推断, 分析模型输出的各类指标(logprob、熵、价值等)以便于奖励建模或行为评估
+        @queries: 输入prompt
+        @responses: 输出候选
         """
         contexts = self.embed_queries(queries)
         context_length = tf.shape(contexts)[1]
         tokens = tf.concat([contexts, responses], axis=1)
         result = self.step_core(self.model_hparams, tokens)
-        logits = result['logits'][:, context_length-1:-1]
+        logits = result['logits'][:, context_length-1:-1] # (batch_size, responses_length)
 
         logits /= self.temperature
         logprobs = utils.logprobs_from_logits(logits=logits, labels=responses)

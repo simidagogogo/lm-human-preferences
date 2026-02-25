@@ -1,5 +1,6 @@
 """
 Utilities.
+难啃的骨头
 """
 
 import collections
@@ -460,7 +461,9 @@ def map_flat_chunked(f, values, *, limit=1<<29):
 
 
 def map_flat_bits(f, values):
-    """Apply the function f to bit-concatenated values, then convert back to original shapes and dtypes."""
+    """
+    Apply the function f to bit-concatenated values, then convert back to original shapes and dtypes.
+    """
     values = [tf.convert_to_tensor(v) for v in values]
     def maybe_bitcast(v, dtype):
         cast = tf.cast if tf.bool in (v.dtype, dtype) else tf.bitcast
@@ -472,10 +475,12 @@ def map_flat_bits(f, values):
     return [maybe_bitcast(tf.reshape(p, tf.shape(b)), v.dtype)
             for p, v, b in zip(parts, values, bits)]
 
+
 def mpi_bcast_tensor_dict(d, comm):
     sorted_keys = sorted(d.keys())
     values = map_flat_bits(partial(mpi_bcast, comm), [d[k] for k in sorted_keys])
     return {k: v for k, v in zip(sorted_keys, values)}
+
 
 def mpi_bcast(comm, value, root=0):
     """Broadcast value from root to other processes via a TensorFlow py_func."""
@@ -509,7 +514,9 @@ def chunk_tensors(tensors, *, limit=1 << 28):
 
 
 def variable_synchronizer(comm, vars, *, limit=1<<28):
-    """Synchronize `vars` from the root to other processs"""
+    """
+    Synchronize `vars` from the root to other processs
+    """
     if comm.Get_size() == 1:
         return tf.no_op()
 
@@ -540,6 +547,9 @@ def mpi_read_file(comm, path):
 
 
 def mpi_allreduce_sum(values, *, comm):
+    """
+    
+    """
     if comm.Get_size() == 1:
         return values
     orig_dtype = values.dtype
@@ -730,6 +740,7 @@ def minimize(*, loss, params, lr, name=None, comm=MPI.COMM_WORLD):
     with tf.name_scope(name, 'minimize'):
         with tf.name_scope('grads'):
             grads = tf.gradients(loss, params)
+
         grads, params = zip(*[(g, v) for g, v in zip(grads, params) if g is not None])
         grads = map_flat_chunked(partial(mpi_allreduce_mean, comm=comm), grads)
         optimizer = tf.train.AdamOptimizer(learning_rate=lr, epsilon=1e-5, name='adam')

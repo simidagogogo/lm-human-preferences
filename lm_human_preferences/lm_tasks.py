@@ -49,6 +49,7 @@ class TaskHParams(hyperparams.HParams):
     truncate_after: int = 0
     
     # 惩罚/奖励的数值(比如在强化学习中, 遇到某种情况返回这个分数)
+    # PPO算法中KL_penalty常用Reference Policy做为KL基准, 鼓励新策略不要偏离原始模型太远
     penalty_reward_value: int = -1
     
     # 用于存储具体“策略”的超参数
@@ -97,18 +98,20 @@ def query_formatter(hparams: TaskHParams, encoder):
     将输入queries连同前缀和后缀拼接成完整的上下文(prompt)输入喂给LLM. 可针对不同任务自定义开头、结尾的提示token
     Turns a query into a context to feed to the language model
     NOTE: Both of these are lists of tokens
-    
+
+    @encoder: 可逆分词器与编码器(ReversibleEncoder类的实例)
+
     用于dialogue、问答、条件文本生成等任务, 一般需要将一些prompt、query以及特殊符号拼接后统一投喂给LLM. 例子:
-        hparams.query_prefix: '问题: '
+        hparams.query_prefix: '问题:'
         hparams.query_suffix: '<EOS>'
         queries: batch的每条形如 ['狗能吃巧克力吗', ...]
         
         encoder.encode(): 
-            ['问题：']→[102,203]
-            ['<EOS>']→[1]
+            ['问题:'] → [102,203]
+            ['<EOS>'] → [1]
             queries  →token序列
         
-        最终模型输入形如:
+        最终模型输入:
             [102,203, x1,x2,...,xn, 1]
             [102,203, y1,y2,...,ym, 1]
     """
@@ -129,7 +132,8 @@ def query_formatter(hparams: TaskHParams, encoder):
 
 def make_query_sampler(*, hparams: TaskHParams, encoder, batch_size: int, mode='train', comm=None):
     """
-    
+    TODO
+    @encoder: 可逆分词器与编码器(ReversibleEncoder类的实例)
     """
     if hparams.start_text:
         start_token, = encoder.encode(hparams.start_text)
@@ -156,6 +160,9 @@ def make_query_sampler(*, hparams: TaskHParams, encoder, batch_size: int, mode='
     context_iterator = data.make_one_shot_iterator()
 
     def sampler(scope=None):
+        """
+        @scope: "ref_queries"
+        """
         with tf.name_scope(scope, 'sample_corpus'):
             context_tokens = context_iterator.get_next()
             return dict(tokens=context_tokens)

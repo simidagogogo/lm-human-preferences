@@ -119,9 +119,16 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
 
 class RewardModelTrainer():
     """
-    RewardModelTrainer有两个, 什么区别?
+    RewardModelTrainer有两个, 这个用于训练reward模型
+    本质：这是一个 Reward Model 的训练器/训练流程管理器
     """
     def __init__(self, *, reward_model, policy, query_sampler, hparams, comm):
+        """
+        reward_model (第一个类): 推理奖励
+        ref_policy: 生成文本
+        query_sampler: 提供prompts
+        """
+
         self.reward_model = reward_model
         self.policy = policy
         self.hparams = hparams
@@ -161,6 +168,7 @@ class RewardModelTrainer():
                 )
 
         with tf.name_scope('train_reward'):
+            # TensorBoard 记录
             summary_writer = utils.get_summary_writer(
                 self.hparams.run.save_dir, 
                 subdir='reward_model', 
@@ -172,8 +180,13 @@ class RewardModelTrainer():
                 lr=Schema(tf.float32, ())
             )
             def train_batch(indices, lr):
+                """
+                
+                """
                 with tf.name_scope('minibatch'):
                     minibatch = self.train_buffer.read(indices)
+
+                    # 损失计算与优化
                     stats = self.label_type.loss(
                         reward_model=self.reward_model.get_rewards_op, 
                         labels=minibatch
@@ -195,8 +208,12 @@ class RewardModelTrainer():
                             use_resource=True
                         )
                         step = step_var.assign_add(1) - 1
-                        
-                        stats = utils.FlatStats.from_dict(stats).map_flat(partial(utils.mpi_allreduce_mean, comm=comm)).as_dict()
+                        stats = utils.FlatStats.from_dict(stats).map_flat(
+                            partial(
+                                utils.mpi_allreduce_mean, 
+                                comm=comm
+                            )
+                        ).as_dict()
                         train_stat_op = utils.record_stats(
                             stats=stats, 
                             summary_writer=summary_writer, 
@@ -252,14 +269,24 @@ class RewardModelTrainer():
         if self.hparams.normalize_before or self.hparams.normalize_after:
             @utils.graph_function()
             def sample_policy_batch():
+                """
+                这是一个自回归生成函数, 类似GPT的generate()
+                输入: prompts (queries)
+                输出: 续写的文本 (responses)
+
+                返回的是一批 (prompt, response) 对，用于：
+                    计算 reward 分数
+                    统计 reward 分布
+                    调整归一化参数
+                """
                 queries = query_sampler('ref_queries')['tokens']
-                # 生成的序列
                 responses = policy.respond_op(
                     queries=queries, 
                     length=hparams.task.response_length
                 )['responses']
                 return queries, responses
 
+            # TODO: 没看懂
             def sample_policy_responses(n_samples):
                 n_batches = utils.ceil_div(n_samples, hparams.rollout_batch_size)
                 return [sample_policy_batch() for _ in range(n_batches)]
@@ -271,14 +298,30 @@ class RewardModelTrainer():
         self.add_to_buffer = add_to_buffer
 
     def normalize(self, sample_fn, target_means, target_stds):
+        """
+        """
         if not self.hparams.normalize_samples:
             return
 
+        # Step 1: 重置归一化参数
+        # gain=1, bias=0
         self.reset_reward_scales()
+        
+        # Step 2: 采样数据
         query_responses = sample_fn(self.hparams.normalize_samples)
+        # 假设 normalize_samples = 1000
+        # 返回: [(queries_1, responses_1), ..., (queries_32, responses_32)]
+    
+        # 计算当前 reward model 的统计量
         means, stds = self.stats(query_responses)
+        # 假设: means = 5.2, stds = 3.7
 
+        # Step 4: 调整归一化参数
         self.set_reward_norms(means, stds, target_means, target_stds)
+        # 计算新的 gain 和 bias:
+        # gain = target_std / old_std = 1.0 / 3.7 = 0.27
+        # bias = target_mean - gain * old_mean = 0 - 0.27 * 5.2 = -1.4
+
         if self.hparams.debug_normalize:
             query_responses = sample_fn(self.hparams.debug_normalize)
             stats = self.stats(query_responses)
@@ -287,6 +330,7 @@ class RewardModelTrainer():
     def train(self):
         """
         """
+        # 下载标签数据（人类偏好标注）
         labels = download_labels(
             self.hparams.labels.source,
             label_type=self.label_type,
@@ -294,9 +338,10 @@ class RewardModelTrainer():
             total_labels=self.hparams.labels.num_train,
             comm=self.comm
         )
-
+        # 添加到缓存区
         self.add_to_buffer(labels)
 
+        # 训练前归一化normalize_before
         if self.hparams.normalize_before:
             target_mean, target_std = self.target_mean_std()
             self.normalize(self.sample_policy_responses, target_mean, target_std)
@@ -310,6 +355,7 @@ class RewardModelTrainer():
 
         # Train on train_indices
         print(self.rank, "training on", self.hparams.labels.num_train, "in batches of", per_rank_batch_size)
+        # 批量训练
         for start_index in range(0, self.hparams.labels.num_train, self.hparams.batch_size):
             end_index = start_index + self.hparams.batch_size
             all_ranks_indices = train_indices[start_index:end_index]
@@ -317,6 +363,7 @@ class RewardModelTrainer():
             lr = (1 - start_index / self.hparams.labels.num_train) * self.hparams.lr
             self.train_batch(our_indices, lr)
 
+        # 训练后归一化normalize_after
         if self.hparams.normalize_after:
             target_mean, target_std = np.zeros([]), np.ones([])
             self.normalize(self.sample_policy_responses, target_mean, target_std)
@@ -324,32 +371,24 @@ class RewardModelTrainer():
 
 def train(hparams: HParams):
     """
+    hparams: 整个RLHF训练任务超参数, 包括ppo, rewards, run, task四大部分
     这是训练reward模型的入口
+    初始化环境 → 构建模型组件 → 设置保存逻辑 → 初始化变量 → 同步参数 → 训练 → 保存checkpoint
     """
     with tf.Graph().as_default():
         hyperparams.dump(hparams)
         utils.set_mpi_seed(hparams.run.seed)
 
         m = trained_models.TrainedModel(hparams.task.policy.initial_model)
-        encoder = m.encoding.get_encoder()
+        encoder = m.encoding.get_encoder() # ReversibleEncoder类的实例
         
-        """
-        model_hparams:
-            n_ctx: 1024
-            n_embd: 768
-            n_head: 12
-            n_layer: 12
-            n_vocab: 50257
-            attn_pdrop: 0.1
-            embd_pdrop: 0.1
-            head_pdrop: 0.1
-            resid_pdrop: 0.1
-        """
+        # Model parameters
         hyperparams.dump(m.hparams(), name='model_hparams')
 
+        # 管理多进程通信
         comm = MPI.COMM_WORLD
         
-        # PPO算法中KL_penalty常用Reference Policy做为KL基准, 鼓励新策略不要偏离原始模型太远
+        # 主要用于生成候选和对候选计算各类指标(logprob、熵、价值等)
         ref_policy = Policy(
             m, 
             scope='ref_policy',
@@ -359,11 +398,10 @@ def train(hparams: HParams):
             build_respond=False
         )
 
-        reward_model = rewards.RewardModelTrainer(
-            m, 
-            is_root=comm.Get_rank() == 0
-        )
+        # 1. 创建模型封装器（第一个类）
+        reward_model = rewards.RewardModelWrapper(m, is_root=comm.Get_rank() == 0)
         
+        # TODO: 负责生成训练用的prompt (queries)
         query_sampler = lm_tasks.make_query_sampler(
             hparams=hparams.task, 
             encoder=encoder, 
@@ -372,6 +410,8 @@ def train(hparams: HParams):
         )
 
         tf.train.create_global_step()
+
+        # 2. 创建训练器（第二个类），传入模型封装器
         reward_trainer = RewardModelTrainer(
             reward_model=reward_model,
             policy=ref_policy,
@@ -380,7 +420,10 @@ def train(hparams: HParams):
             comm=comm,
         )
 
+        # reward模型保存路径
         save_dir = hparams.run.save_dir
+
+        # 仅在chief worker保存模型检查点
         if comm.Get_rank() == 0 and save_dir:
             print(f"Will save to {save_dir}")
             # save_dir: /tmp/save/train_reward/testdesc-2601032319
@@ -413,15 +456,25 @@ def train(hparams: HParams):
 
             @utils.graph_function()
             def sync_models():
+                """在多进程训练中，将 rank0的参数广播到其他进程"""
                 return utils.variable_synchronizer(
                     comm, 
                     vars=ref_policy.get_params() + reward_model.get_params()
                 )
 
+        # 冻结计算图，防止意外修改
         tf.get_default_graph().finalize()
+
         with utils.mpi_session() as sess:
+            # 初始化变量
             init_ops.run()
+            
+            # 同步参数到所有进程
             sync_models()
+            
+            # 核心训练循环
             reward_trainer.train() # TODO
+            
+            # 保存最终模型
             if saver:
                 saver.save(sess, checkpoint_dir)

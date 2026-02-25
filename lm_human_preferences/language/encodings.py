@@ -179,7 +179,6 @@ class ReversibleEncoder:
         self.cache[token] = word
         return word
 
-
     def encode(self, text):
         """
         原始文本编码为tokenid
@@ -239,7 +238,6 @@ class ReversibleEncoder:
     final tokens: [266, 304, 1312, 256, 300, 308, 13, 304, 10662, 285, 275, 474, 288, 299, 279, 13, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259, 50259]
     """
 
-
     def decode(self, tokens, pretty=False):
         """
         tokenid解码为原始文本
@@ -274,7 +272,6 @@ class ReversibleEncoder:
         packetaucuses Ning villages Frankenstein canine Saudibah facilities pricedanski Mbps traditionsHeight dedicatemillion eligerm Dodd Compliance appreciation Caribbean PTSUntil        
         """
         return text
-
 
 def read_file(path):
     """
@@ -329,6 +326,9 @@ class Encoding:
         """
 
     def get_encoder(self):
+        """
+        返回ReversibleEncoder类的实例, 一个可逆分词器与编码器
+        """
         if self.name == "test":
             vocab = "abcdefghijklmnopqrstuvwxyz."
             assert len(vocab) == self.n_vocab

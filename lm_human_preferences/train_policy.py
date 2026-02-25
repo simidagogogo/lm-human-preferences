@@ -656,7 +656,7 @@ def train(hparams: HParams):
 
         utils.set_mpi_seed(hparams.run.seed)
         
-        # 
+        # 从检查点加载的已完成训练的reward模型
         score_model = TrainedRewardModel(
             hparams.rewards.trained_model, 
             m.encoding, 
