@@ -477,7 +477,7 @@ class Model:
     ):
         """
         模型前向传播
-        :param X: 输入tokens
+        :param X: 输入tokens, [batch_size, sequnce_length]
         :param Y: unused
         :param past: kv缓存
         :param past_tokens: 所有历史tokens
@@ -612,10 +612,11 @@ class Model:
 
             # [batch, sequence-1]
             relevant_losses = lm_losses[:, :-1]
+            # shape: (batch, sequence-1)
             results['lm_all_losses'] = relevant_losses
-            # [batch, sequence, vocab_n]
+            # shape: [batch, sequence, vocab_n]
             results['lm_logits'] = lm_logits
-            # (batch, )
+            # shape: (batch, )
             results['lm_losses'] = tf.reduce_mean(relevant_losses, axis=-1)
 
             head_seeds = split_seed(heads_seed, len(self.scalar_heads))
@@ -629,7 +630,10 @@ class Model:
                     # res: (batch, sequence)
                     # reg_loss: ()
                     res, reg_loss = fc_layer(dropped_h, (), scale=0 if head_name == 'value' else None)
+
+                    # shape: (batch, sequence)
                     results[head_name] = tf.cast(res, dtype=tf.float32, name='res_cast')
+                    # shape: ()
                     results[f"{head_name}_regularizer"] = tf.cast(reg_loss, dtype=tf.float32, name='reg_loss_cast')
             
             # All done!

@@ -63,10 +63,10 @@ def get_train_reward_experiments():
     reward模型训练配置
     """
     _shared = combos(
-        bind('labels.type', 'best_of_4'),
+        bind('labels.type', 'best_of_4'),   # 
         bind('normalize_after', True),
         bind('normalize_before', True),
-        bind('normalize_samples', 256),
+        bind('normalize_samples', 256),     # 从ref_policy模型中采样256条<query, response>样本对
     )
 
     _books_task = combos(
@@ -74,7 +74,7 @@ def get_train_reward_experiments():
         _shared,
         bind('batch_size', 32),             # 训练奖励模型时的批次大小（用于梯度更新）
         bind('lr', 5e-5),
-        bind('rollout_batch_size', 512),    # 从策略模型采样响应时的批次大小（用于生成训练数据）
+        bind('rollout_batch_size', 512),    # 从策略模型采样响应时的批次大小(用于生成训练数据)
     )
 
     # 任务1. 积极情感-风格化续写

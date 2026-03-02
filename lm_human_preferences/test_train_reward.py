@@ -52,18 +52,18 @@ def test_scalar_rating():
 
 def test_normalize_before():
     train_reward_test({
-        'normalize_before': True,
-        'normalize_after': False,
-        'normalize_samples': 1024,
+        'normalize_before': True,   # 训练前归一化
+        'normalize_after': False,   # 训练后归一化
+        'normalize_samples': 1024,  # 从ref_policy模型中采样1024条<query, response>样本对估计统计量
         'debug_normalize': 1024,
     })
 
 
 def test_normalize_both():
     train_reward_test({
-        'normalize_before': True,
-        'normalize_after': True,
-        'normalize_samples': 1024,
+        'normalize_before': True,   # 训练前归一化
+        'normalize_after': True,    # 训练后归一化
+        'normalize_samples': 1024,  # 从ref_policy模型中采样1024条<query, response>样本对
         'debug_normalize': 1024,
     })
 

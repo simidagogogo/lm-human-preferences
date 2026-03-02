@@ -15,12 +15,7 @@ class Dataset:
     一个用于构建和管理训练数据的数据集注册和生成类
     结合了注册表模式(Registry Pattern)、实例配置、TF数据流水线生成等最佳实践
     """
-    def __init__(
-        self,
-        name,
-        *,
-        generator=None,
-    ):
+    def __init__(self, name, *, generator=None):
         """
         @name: 每个Dataset都要求有唯一name, 自动写入全局字典
         @generator: 生成器函数或对象

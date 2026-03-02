@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 
+"""
+奖励模型训练逻辑
+"""
+
 import json
 import os
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Optional
+from label_types import LabelType
 
 import numpy as np
 import tensorflow as tf
@@ -51,11 +56,11 @@ class HParams(hyperparams.HParams):
     labels: LabelHParams = field(default_factory=LabelHParams)
 
     batch_size: int = 40            # total across ranks
-    lr: float = 5e-5
-    rollout_batch_size: int = 64
+    lr: float = 5e-5                # 学习率
+    rollout_batch_size: int = 64    # 一次rollout包括64条样本
     normalize_samples: int = 0      # Samples used to estimate reward mean and std
     debug_normalize: int = 0        # Samples used to check that normalization worked
-    
+
     # Whether, before training, to normalize the rewards on the policy to the scales on the training buffer.
     # (For comparisons, just use mean 0, var 1.)
     # 训练开始前, 把当前policy rollout的reward对齐到训练buffer的reward尺度, 主要为了训练稳定/公平
@@ -119,37 +124,34 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
 
 class RewardModelTrainer():
     """
-    RewardModelTrainer有两个, 这个用于训练reward模型
-    本质：这是一个 Reward Model 的训练器/训练流程管理器
+    Reward Model训练器/训练流程管理器
     """
     def __init__(self, *, reward_model, policy, query_sampler, hparams, comm):
         """
-        reward_model (第一个类): 推理奖励
-        ref_policy: 生成文本
-        query_sampler: 提供prompts
+        @reward_model:  用于计算奖励得分
+        @policy:        ref_policy, 用于自回归生成文本
+        @query_sampler: 从Dataset中采样prompts
         """
-
-        self.reward_model = reward_model
-        self.policy = policy
+        self.reward_model = reward_model    # 带训练的奖励模型
+        self.policy = policy                # ref_policy
         self.hparams = hparams
         self.num_ranks = comm.Get_size()
         self.rank = comm.Get_rank()
         self.comm = comm
 
-        self.label_type = label_types.get(hparams.labels.type)
+        self.label_type: LabelType = label_types.get(hparams.labels.type)
         self.question_schemas = self.label_type.question_schemas(
             query_length=hparams.task.query_length,
             response_length=hparams.task.response_length,
         )
-
         data_schemas = {
             **self.label_type.label_schemas(),
             **self.question_schemas,
         }
         """
         data_schemas: {
-            'best': Schema(dtype=tf.int32, shape=())},
-            'query': Schema(dtype=tf.int32, shape=(64,)), 
+            'best':    Schema(dtype=tf.int32, shape=())},
+            'query':   Schema(dtype=tf.int32, shape=(64,)), 
             'sample0': Schema(dtype=tf.int32, shape=(24,)), 
             'sample1': Schema(dtype=tf.int32, shape=(24,)), 
             'sample2': Schema(dtype=tf.int32, shape=(24,)), 
@@ -157,11 +159,7 @@ class RewardModelTrainer():
         """
 
         with tf.device(None), tf.device('/cpu:0'):
-            with tf.variable_scope(
-                'label_buffer', 
-                use_resource=True, 
-                initializer=tf.zeros_initializer
-            ):
+            with tf.variable_scope('label_buffer', use_resource=True, initializer=tf.zeros_initializer):
                 self.train_buffer = utils.SampleBuffer(
                     capacity=hparams.labels.num_train, 
                     schemas=data_schemas
@@ -181,7 +179,8 @@ class RewardModelTrainer():
             )
             def train_batch(indices, lr):
                 """
-                
+                @indices: batch_size条样本
+                @lr: 学习率
                 """
                 with tf.name_scope('minibatch'):
                     minibatch = self.train_buffer.read(indices)
@@ -240,9 +239,19 @@ class RewardModelTrainer():
             self.target_mean_std = target_mean_std
 
             def stats(query_responses):
-                rewards = np.concatenate([self.reward_model.get_rewards(qs, rs) for qs, rs in query_responses], axis=0)
+                """
+                这是一个计算奖励模型在多个样本上的统计量（均值和标准差）的方法，用于 RLHF 训练中的奖励归一化。它使用 MPI（多进程通信） 在分布式环境中聚合统计信息。
+                @query_responses: List[Tuple[querys, responses]], query的shape为[rollout_batch_size, xx]
+                """
+                # (normalize_samples, )
+                rewards = np.concatenate(
+                    [self.reward_model.get_rewards(qs, rs) for qs, rs in query_responses], 
+                    axis=0
+                )
                 assert len(rewards.shape) == 1, f'{rewards.shape}'
                 sums = np.asarray([rewards.sum(axis=0), np.square(rewards).sum(axis=0)])
+
+                # TODO: allreduce
                 means, sqr_means = self.comm.allreduce(sums, op=MPI.SUM) / (self.num_ranks * rewards.shape[0])
                 stds = np.sqrt(sqr_means - means ** 2)
                 return means, stds
@@ -263,31 +272,39 @@ class RewardModelTrainer():
                 print(f'targets: {new_mean} +- {new_std}')
                 print(f'before normalize: {mean} +- {std}')
                 assert np.isfinite((mean, std, new_mean, new_std)).all()
-                self.reward_model.set_reward_norm(old_mean=mean, old_std=std, new_mean=new_mean, new_std=new_std)
+                self.reward_model.set_reward_norm(
+                    old_mean=mean, old_std=std, 
+                    new_mean=new_mean, new_std=new_std
+                )
             self.set_reward_norms = set_reward_norms
 
+        # 训练前归一化 or 训练后归一化
         if self.hparams.normalize_before or self.hparams.normalize_after:
             @utils.graph_function()
             def sample_policy_batch():
                 """
-                这是一个自回归生成函数, 类似GPT的generate()
-                输入: prompts (queries)
-                输出: 续写的文本 (responses)
-
-                返回的是一批 (prompt, response) 对，用于：
-                    计算 reward 分数
+                将queries输入ref_policy模型并自回归得到responses
+                @return: 返回一批(prompt, response)对，用于：
+                    1. 计算 reward 分数
                     统计 reward 分布
                     调整归一化参数
                 """
+                # queries: [rollout_batch_size/comm.Get_size() , query_length]
                 queries = query_sampler('ref_queries')['tokens']
+                
+                # responses: [rollout_batch_size, response_length]
                 responses = policy.respond_op(
                     queries=queries, 
                     length=hparams.task.response_length
                 )['responses']
                 return queries, responses
 
-            # TODO: 没看懂
             def sample_policy_responses(n_samples):
+                """
+                采样<query, response>n_samples对
+                @n_samples: 一共采样的[queries, responses]条数
+                @return: List[Tuplep[queries, responses]], list长度为n_batches, 其中每个queries的shape: [hparams.rollout_batch_size, xx]
+                """
                 n_batches = utils.ceil_div(n_samples, hparams.rollout_batch_size)
                 return [sample_policy_batch() for _ in range(n_batches)]
             self.sample_policy_responses = sample_policy_responses
@@ -299,24 +316,26 @@ class RewardModelTrainer():
 
     def normalize(self, sample_fn, target_means, target_stds):
         """
+        归一化
+        @sample_fn:     从ref_policy中采样<query, response>样本对的方法
+        @target_means:  目标均值
+        @target_stds:   目标方差
         """
         if not self.hparams.normalize_samples:
             return
 
-        # Step 1: 重置归一化参数
-        # gain=1, bias=0
+        # 1. 重置奖励缩放
         self.reset_reward_scales()
         
-        # Step 2: 采样数据
-        query_responses = sample_fn(self.hparams.normalize_samples)
-        # 假设 normalize_samples = 1000
-        # 返回: [(queries_1, responses_1), ..., (queries_32, responses_32)]
-    
-        # 计算当前 reward model 的统计量
+        # Step2: 从策略样本采样数据估计统计量
+        query_responses = sample_fn(self.hparams.normalize_samples) # 256
+        print(f"debug. len(query_responses): {len(query_responses)}") # 256 / 64 = 4
         means, stds = self.stats(query_responses)
         # 假设: means = 5.2, stds = 3.7
 
         # Step 4: 调整归一化参数
+        # 3. 设置新的归一化参数
+        # 目标：将当前分布 N(means, stds) 变换为 N(target_mean, target_std)
         self.set_reward_norms(means, stds, target_means, target_stds)
         # 计算新的 gain 和 bias:
         # gain = target_std / old_std = 1.0 / 3.7 = 0.27
@@ -401,7 +420,7 @@ def train(hparams: HParams):
         # 1. 创建模型封装器（第一个类）
         reward_model = rewards.RewardModelWrapper(m, is_root=comm.Get_rank() == 0)
         
-        # TODO: 负责生成训练用的prompt (queries)
+        # 负责生成训练用的prompt(queries)
         query_sampler = lm_tasks.make_query_sampler(
             hparams=hparams.task, 
             encoder=encoder, 
@@ -411,7 +430,7 @@ def train(hparams: HParams):
 
         tf.train.create_global_step()
 
-        # 2. 创建训练器（第二个类），传入模型封装器
+        # 2. 创建训练器(第二个类), 传入模型封装器
         reward_trainer = RewardModelTrainer(
             reward_model=reward_model,
             policy=ref_policy,
@@ -464,17 +483,9 @@ def train(hparams: HParams):
 
         # 冻结计算图，防止意外修改
         tf.get_default_graph().finalize()
-
         with utils.mpi_session() as sess:
-            # 初始化变量
-            init_ops.run()
-            
-            # 同步参数到所有进程
-            sync_models()
-            
-            # 核心训练循环
-            reward_trainer.train() # TODO
-            
-            # 保存最终模型
-            if saver:
+            init_ops.run()          # 初始化变量
+            sync_models()           # 同步参数到所有进程
+            reward_trainer.train()  # 核心训练循环
+            if saver:               # 保存最终模型
                 saver.save(sess, checkpoint_dir)

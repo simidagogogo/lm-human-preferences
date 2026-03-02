@@ -100,30 +100,16 @@ def query_formatter(hparams: TaskHParams, encoder):
     NOTE: Both of these are lists of tokens
 
     @encoder: 可逆分词器与编码器(ReversibleEncoder类的实例)
-
-    用于dialogue、问答、条件文本生成等任务, 一般需要将一些prompt、query以及特殊符号拼接后统一投喂给LLM. 例子:
-        hparams.query_prefix: '问题:'
-        hparams.query_suffix: '<EOS>'
-        queries: batch的每条形如 ['狗能吃巧克力吗', ...]
-        
-        encoder.encode(): 
-            ['问题:'] → [102,203]
-            ['<EOS>'] → [1]
-            queries  →token序列
-        
-        最终模型输入:
-            [102,203, x1,x2,...,xn, 1]
-            [102,203, y1,y2,...,ym, 1]
     """
     def query_formatter(queries):
         batch_size = tf.shape(queries)[0]
         prefix_tokens = tf.constant(encoder.encode(hparams.query_prefix), dtype=tf.int32)
         tiled_prefix = utils.expand_tile(prefix_tokens, batch_size, axis=0)
-        print(f"tiled_prefix.shape: {tiled_prefix.shape.as_list()}")
+        # print(f"tiled_prefix.shape: {tiled_prefix.shape.as_list()}")
 
         suffix_tokens = tf.constant(encoder.encode(hparams.query_suffix), dtype=tf.int32)
         tiled_suffix = utils.expand_tile(suffix_tokens, batch_size, axis=0)
-        print(f"tiled_suffix.shape: {tiled_suffix.shape.as_list()}")
+        # print(f"tiled_suffix.shape: {tiled_suffix.shape.as_list()}")
         
         # 横向拼接[前缀, 查询, 后缀], shape: [batch_size, prefix_len + query_len + suffix_len]
         return tf.concat([tiled_prefix, queries, tiled_suffix], 1)
@@ -132,8 +118,9 @@ def query_formatter(hparams: TaskHParams, encoder):
 
 def make_query_sampler(*, hparams: TaskHParams, encoder, batch_size: int, mode='train', comm=None):
     """
-    TODO
+    数据集迭代器
     @encoder: 可逆分词器与编码器(ReversibleEncoder类的实例)
+    @batch_size: batch_size=utils.exact_div(hparams.rollout_batch_size, comm.Get_size())
     """
     if hparams.start_text:
         start_token, = encoder.encode(hparams.start_text)
@@ -162,6 +149,7 @@ def make_query_sampler(*, hparams: TaskHParams, encoder, batch_size: int, mode='
     def sampler(scope=None):
         """
         @scope: "ref_queries"
+        @return: [batch_size, xxx]
         """
         with tf.name_scope(scope, 'sample_corpus'):
             context_tokens = context_iterator.get_next()

@@ -1,6 +1,6 @@
 """
 Synthetic scores.
-合成得分
+奖励模型架构(从LM改造)
 """ 
 
 import os
@@ -60,6 +60,8 @@ class RewardModelWrapper:
     def _build(self, tokens, do_dropout=False, name=None):
         """
         奖励模型前向传播, 预测奖励值
+        @tokens: [batch_size, sequence_length]
+        return: value, shape; (batch_size, )
         """
         with tf.variable_scope(
             self.scope, 
@@ -75,14 +77,18 @@ class RewardModelWrapper:
             )
 
             # 先取reward字段, 然后取序列最后一个时间步[:, -1], 即每条输入数据的最后一步的奖励
+            # shape: (batch_size, )
             reward = lm_output['reward'][:, -1]
             with tf.variable_scope('reward_norm'):
                 # 如果还没有build则给初始值
                 if not self.built:
-                    self.reward_gain = tf.get_variable('gain', shape=(), initializer=tf.constant_initializer(1))
-                    self.reward_bias = tf.get_variable('bias', shape=(), initializer=tf.constant_initializer(0))
+                    # 占位符,用于输入数据
                     self._reward_gain_p = tf.placeholder(name='gain_p', dtype=tf.float32, shape=())
                     self._reward_bias_p = tf.placeholder(name='bias_p', dtype=tf.float32, shape=())
+                    
+                    self.reward_gain = tf.get_variable('gain', shape=(), initializer=tf.constant_initializer(1))
+                    self.reward_bias = tf.get_variable('bias', shape=(), initializer=tf.constant_initializer(0))
+                    
                     self._set_reward_norm = tf.group(
                         self.reward_gain.assign(self._reward_gain_p),
                         self.reward_bias.assign(self._reward_bias_p)
@@ -105,7 +111,7 @@ class RewardModelWrapper:
             return
 
         with tf.name_scope('dummy'):
-            self._build(tokens=tf.zeros([0,0], dtype=tf.int32))
+            self._build(tokens=tf.zeros([0, 0], dtype=tf.int32))
 
     def get_params(self):
         """
@@ -115,10 +121,15 @@ class RewardModelWrapper:
         return self.model.get_params() + [self.reward_gain, self.reward_bias]
 
     def reset_reward_scale(self):
+        """重置奖励模型归一化参数"""
+        # 返回当前活跃的Session对象
         sess = tf.get_default_session()
         sess.run(
             self._set_reward_norm, 
-            feed_dict={self._reward_gain_p: 1, self._reward_bias_p: 0}
+            feed_dict={
+                self._reward_gain_p: 1, 
+                self._reward_bias_p: 0
+            }
         )
 
     def set_reward_norm(self, *, old_mean, old_std, new_mean, new_std):
@@ -127,6 +138,7 @@ class RewardModelWrapper:
         """
         sess = tf.get_default_session()
         old_gain, old_bias = sess.run((self.reward_gain, self.reward_bias))
+
         assert old_gain == 1 and old_bias == 0,\
             f'set_reward_norm expects gain = 1 and bias = 0, not {old_gain}, {old_bias}'
         # gain * N(old_mean,old_std) + bias = N(gain * old_mean, gain * old_std) + bias
@@ -135,7 +147,13 @@ class RewardModelWrapper:
         # gain * old_mean + bias = new_mean, bias = new_mean - gain * old_mean
         gain = new_std / old_std
         bias = new_mean - gain * old_mean
-        sess.run(self._set_reward_norm, feed_dict={self._reward_gain_p: gain, self._reward_bias_p: bias})
+        sess.run(
+            self._set_reward_norm, 
+            feed_dict={
+                self._reward_gain_p: gain, 
+                self._reward_bias_p: bias
+            }
+        )
 
     def _set_initializers(self):
         """
@@ -165,7 +183,10 @@ class RewardModelWrapper:
 
     def get_rewards_op(self, queries, responses):
         """
-        给定一组prompt-token(queries)和一组response-token(responses)合成完整输入后, 送入rewardModel得到奖励分数
+        计算query+response的奖励值
+        @queries:    shape为(rollout_batch_size, query_length)
+        @response: : shape为(rollout_batch_size, response_length)
+        return:      value, shape为(rollout_batch_size,)
         """
         tokens = tf.concat([queries, responses], axis=1)
         return self._build(tokens)

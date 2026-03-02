@@ -1,3 +1,7 @@
+"""
+策略网络(GPT-2)
+"""
+
 import tensorflow as tf
 
 from lm_human_preferences.language import model, sample

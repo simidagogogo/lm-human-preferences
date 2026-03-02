@@ -1,10 +1,10 @@
 """
 Interface and implementations of label types for a reward model.
 
-定义奖励模型人类标注类型LabelType的接口, 以及3种具体实现: 
-  1. PickBest
-  2. ScalarRating
-  3. ScalarComparison
+人类偏好数据格式, 用于训练奖励模型: 
+  1. PickBest: Best-of-N选择
+  2. ScalarRating: 标量评分
+  3. ScalarComparison: 成对比较
 """
 
 from abc import ABC, abstractmethod
@@ -53,7 +53,7 @@ class LabelType(ABC):
 
 class PickBest(LabelType):
     """
-    Pick best response amongst N.
+    Pick best response amongst N. Best-of-N选择
     """
     def __init__(self, num_responses):
         self.num_responses = num_responses
@@ -76,15 +76,17 @@ class PickBest(LabelType):
     def loss(self, reward_model, labels) -> Dict[str, tf.Tensor]:
         # logits: 多分类logit向量, 每一行对应一个样本, 每一列对应一个候选回答得分. [batch_size, num_responses]
         logits = tf.stack(
-            [reward_model(labels['query'], labels[f'sample{i}']) for i in range(self.num_responses)], 
+            [reward_model(labels['query'], labels[f'sample{i}']) 
+             for i in range(self.num_responses)], 
             axis=1
         )
-        
-        # logits: [batch_size, num_responses]
-        # labels: [batch_size]
+        # labels: [batch_size], logits: [batch_size, num_responses]
         # 对batch求平均, 得到标量loss
         error = tf.reduce_mean(
-            tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels['best'], logits=logits)
+            tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=labels['best'], 
+                logits=logits
+            )
         )
         return dict(loss=error, error=error)
 
