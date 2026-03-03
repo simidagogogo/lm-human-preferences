@@ -100,5 +100,6 @@ def cnndm_generator(mode, seed=0, shuffle=False, comm=None):
 
         text = re.sub(r"\n{3,}", "\n\n", text)
         text = text.split('@highlight')[0].strip()
+        # TODO: text的内容是什么?
         yield text
         # _, ref_sents = get_art_abs(path)

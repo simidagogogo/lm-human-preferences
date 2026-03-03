@@ -121,7 +121,9 @@ class RewardModelWrapper:
         return self.model.get_params() + [self.reward_gain, self.reward_bias]
 
     def reset_reward_scale(self):
-        """重置奖励模型归一化参数"""
+        """
+        重置奖励模型归一化参数gain, bias
+        """
         # 返回当前活跃的Session对象
         sess = tf.get_default_session()
         sess.run(
@@ -137,10 +139,11 @@ class RewardModelWrapper:
         Given old_mean+-old_std of reward_model, change gain and bias to get N(new_mean,new_std).
         """
         sess = tf.get_default_session()
-        old_gain, old_bias = sess.run((self.reward_gain, self.reward_bias))
-
-        assert old_gain == 1 and old_bias == 0,\
-            f'set_reward_norm expects gain = 1 and bias = 0, not {old_gain}, {old_bias}'
+        old_gain, old_bias = sess.run(
+            (self.reward_gain, self.reward_bias)
+        )
+        assert old_gain == 1 and old_bias == 0, f'set_reward_norm expects gain = 1 and bias = 0, not {old_gain}, {old_bias}'
+        
         # gain * N(old_mean,old_std) + bias = N(gain * old_mean, gain * old_std) + bias
         #                                   = N(gain * old_mean + bias, gain * old_std)
         # gain * old_std = new_std, gain = new_std / old_std

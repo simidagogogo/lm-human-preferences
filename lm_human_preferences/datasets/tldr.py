@@ -26,4 +26,5 @@ def tldr_generator(mode, seed=0, shuffle=False, comm=None):
         text = ftfy.fix_text(text)
         text = re.sub(r"\n{3,}", "\n\n", text)
         text = text.strip()
+        # TODO: text的内容是什么?
         yield text

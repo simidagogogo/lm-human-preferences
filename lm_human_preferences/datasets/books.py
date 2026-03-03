@@ -44,7 +44,9 @@ def books_generator(mode, seed=0, shuffle=False, comm=None):
         if isinstance(x, dict):
             # 尝试从字典中提取文本字段
             text = x.get('text', x.get('content', str(x)))
+            # TODO: text的内容是什么?
             yield text
         else:
             # 如果不是字典，直接作为字符串返回
+            # TODO: text的内容是什么?
             yield str(x)

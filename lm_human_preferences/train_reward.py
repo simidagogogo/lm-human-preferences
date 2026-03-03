@@ -130,7 +130,7 @@ class RewardModelTrainer():
         """
         @reward_model:  用于计算奖励得分
         @policy:        ref_policy, 用于自回归生成文本
-        @query_sampler: 从Dataset中采样prompts
+        @query_sampler: 从Dataset中采样prompts和labels
         """
         self.reward_model = reward_model    # 带训练的奖励模型
         self.policy = policy                # ref_policy
@@ -265,16 +265,28 @@ class RewardModelTrainer():
             self.log_stats_after_normalize = log_stats_after_normalize
 
             def reset_reward_scales():
+                """
+                reward_model奖励归一化参数重置
+                通过可控的缩放和平移参数来调整奖励信号的尺度, 这在强化学习训练中对稳定性和收敛速度非常重要
+                """
                 self.reward_model.reset_reward_scale()
             self.reset_reward_scales = reset_reward_scales
 
             def set_reward_norms(mean, std, new_mean, new_std):
-                print(f'targets: {new_mean} +- {new_std}')
+                """
+                调整reward_model奖励值归一化参数
+                通过可控的缩放和平移参数来调整奖励信号的尺度, 这在强化学习训练中对稳定性和收敛速度非常重要
+                """
                 print(f'before normalize: {mean} +- {std}')
+                print(f'targets: {new_mean} +- {new_std}')
+
+                # 检查数组中所有元素是否都为有限值(只要有一个不为有限值就抛出异常)
                 assert np.isfinite((mean, std, new_mean, new_std)).all()
                 self.reward_model.set_reward_norm(
-                    old_mean=mean, old_std=std, 
-                    new_mean=new_mean, new_std=new_std
+                    old_mean=mean, 
+                    old_std=std, 
+                    new_mean=new_mean, 
+                    new_std=new_std
                 )
             self.set_reward_norms = set_reward_norms
 
@@ -285,9 +297,9 @@ class RewardModelTrainer():
                 """
                 将queries输入ref_policy模型并自回归得到responses
                 @return: 返回一批(prompt, response)对，用于：
-                    1. 计算 reward 分数
-                    统计 reward 分布
-                    调整归一化参数
+                    1. 计算reward分数
+                    2. 统计reward分布
+                    3. 调整归一化参数
                 """
                 # queries: [rollout_batch_size/comm.Get_size() , query_length]
                 queries = query_sampler('ref_queries')['tokens']
@@ -324,18 +336,14 @@ class RewardModelTrainer():
         if not self.hparams.normalize_samples:
             return
 
-        # 1. 重置奖励缩放
+        # 1. 重置reward_model的奖励归一化参数
         self.reset_reward_scales()
         
-        # Step2: 从策略样本采样数据估计统计量
-        query_responses = sample_fn(self.hparams.normalize_samples) # 256
-        print(f"debug. len(query_responses): {len(query_responses)}") # 256 / 64 = 4
+        # Step2: 从策略样本采样数据以估计统计量
+        query_responses = sample_fn(self.hparams.normalize_samples) # 256, len(query_responses)=256/64=4
         means, stds = self.stats(query_responses)
-        # 假设: means = 5.2, stds = 3.7
 
-        # Step 4: 调整归一化参数
-        # 3. 设置新的归一化参数
-        # 目标：将当前分布 N(means, stds) 变换为 N(target_mean, target_std)
+        # Step 4: 调整归一化参数. 将当前分布 N(means, stds) 变换为 N(target_mean, target_std)
         self.set_reward_norms(means, stds, target_means, target_stds)
         # 计算新的 gain 和 bias:
         # gain = target_std / old_std = 1.0 / 3.7 = 0.27
@@ -467,6 +475,7 @@ def train(hparams: HParams):
             checkpoint_dir = None
 
         with utils.variables_on_gpu():
+            # tf.group()将多个操作组合成一个操作, 执行时会同时运行所有子操作. 这里用于同时更新两个归一化参数
             init_ops = tf.group(
                 tf.global_variables_initializer(),
                 tf.local_variables_initializer(),
