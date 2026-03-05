@@ -1,0 +1,49 @@
+(base) root@iZ0jlfyn5du7ptefx2tr5vZ:~/PycharmProjects/lm-human-preferences/lm_human_preferences/datasets# python tldr_test.py
+--- Testing 'valid' mode ---
+Loading dataset for mode: valid...
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Generator ready. Starting to yield texts...
+
+[Sample 1]:
+========================================
+SUBREDDIT: r/AskReddit
+TITLE: How do you get someone out of your head?
+POST: Hi,
+I'm 22, and I have been with my girlfriend for 5 years now. We recently moved together. We've always loved each other intensely.
+
+Problem, I recently started to have feelings for an other person (a friend). This person has had a boyfriend for now 3 years, and has absolutely no ideas. Those feelings were so strong, it was hard to hide them. After 2 months of me being distant and really sad, my girlfriend forced me to say what was bothering me. I'm not a good liar, and now she knows.
+
+We decided to give us a week alone, I went to my parents.
+
+Now, I'm completely lost. I keep on thinking about this person, and I hate that. I would like for those feelings to go away, to leave me alone. But I can't.
+
+What do I do? It's been 3 months now, and I'm just desperate.
+TL;DR: long relationship; fell in love with an other person; admitted it; would like it to disappear, though it doesn't.
+========================================
+✅ Found 'TL;DR' tag.
+
+[Sample 2]:
+========================================
+SUBREDDIT: r/pettyrevenge
+TITLE: So, my mom woke me up with a loud TV.
+POST: She was in her living room, watching TV. This was at about 8:30 in the morning, and she was exercising. She turned the TV up extra loud to hear it over her excercycle, and woke me up. I went in there asking for her to turn it down. She said she didn't have to; I explained that I always used headphones so she didn't have to deal with my noise and that she should give me a little more respect, given that I paid rent at the time.
+
+She disagreed. I went back to my room, rather pissed off at the lack of equality. I had no lock on my door; but I had a dresser right next to it, so I pulled one of the drawers out enough so that it caused the door to not be openable. Then, I turned my speakers up really loud and blasted Gangnam Style on repeat, with the bass cranked up as high as it could go.
+
+If you hate Gangnam Style for being overplayed, you will see why I chose that particular song. I personally don't mind it. But here's the thing about my bass; it vibrates the walls, making one hell of a lot of noise. Needless to say, my mom was not pleased and shut off the internet. But it was oh so worth it.
+TL;DR: Mom had the TV on loud and woke me up, didn't care that I'd respected audio levels in the house, so I countered with playing Gangnam Style on repeat with the bass thumping through the walls.
+========================================
+✅ Found 'TL;DR' tag.
+
+[Sample 3]:
+========================================
+SUBREDDIT: r/relationships
+TITLE: My girlfriend (20f) of two years cheated on me (20m) by kissing two guys at a Halloween party.
+POST: Lately her and I have been having a few problems, and these problems have been brought up before a few times. One problem being that I don't show enough affection. I don't tell her she's pretty very often or don't compliment her much. I feel terrible about it, but this time I was really trying to change for her.
+
+For Halloween she went to visit her step brother at a college and I got drunk with my friends and watched movies. Last night (11/1) we got in a huge fight about me not changing and how our relationship won't work out and basically broke up over the phone. So in an effort to try and fix it I drove to her house. She told me how at the parties she went to that two guys kissed her. The first one she pushed away, but the second one I asked her if she kissed him back and she said yes and that she did it because it made her feel wanted, which I guess I haven't been making her feel that way lately. We cried, we talked about everything, we had great sex, and I stayed over at her house just to sleep with her and then snuck out in the morning so her parents wouldn't know.
+
+We both obviously want to work things out but aren't sure if we should. I love this girl, but the more I think about it, all I can think about is her cheating on me, and more importantly, liking it. It makes me sick to my stomach. Should I even try to fix it or would I be better off cutting all ties.
+TL;DR: My girlfriend kissed two guys at a Halloween party and liked it. We love each other but don't know what to do about it.
+========================================
+✅ Found 'TL;DR' tag.
