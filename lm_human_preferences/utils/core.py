@@ -904,6 +904,7 @@ def get_summary_writer(save_dir, subdir='', comm=MPI.COMM_WORLD):
 
 def record_stats(*, stats, summary_writer, step, log_interval, name=None, comm=MPI.COMM_WORLD):
     """负责将统计数据写入TensorBoard(通过summary_writer), 或者打印到控制台
+
     :param stats: 
     :param summary_writer: 
     :param step: 
@@ -916,7 +917,7 @@ def record_stats(*, stats, summary_writer, step, log_interval, name=None, comm=M
         if comm.Get_rank() != 0 or step % log_interval != 0:
             return
         for k, v in safe_zip(stats.keys(), stat_values):
-            print('step=', step, ', k=', k, ', v=', v)
+            print(f"step={step}, k={k}, v={v}")
 
     summary_ops = [
         tf.py_func(
@@ -924,6 +925,7 @@ def record_stats(*, stats, summary_writer, step, log_interval, name=None, comm=M
             [step] + list(stats.values()), 
             []
         )]
+
     if summary_writer:
         with summary_writer.as_default(), summary.always_record_summaries():
             for key, value in stats.items():

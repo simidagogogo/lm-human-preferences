@@ -496,12 +496,10 @@ def train(hparams: HParams):
 
         # 仅在chief worker保存模型检查点
         if comm.Get_rank() == 0 and save_dir:
-            print(f"Will save to {save_dir}")
-            # save_dir: /tmp/save/train_reward/testdesc-2601032319
+            print(f"Will save to {save_dir}")           # /tmp/save/train_reward/testdesc-2601032319
             saver = tf.train.Saver(max_to_keep=20, save_relative_paths=True)
             checkpoint_dir = os.path.join(save_dir, 'reward_model/checkpoints/model.ckpt')
-            print(f"checkpoint_dir: {checkpoint_dir}")
-            # checkpoint_dir: /tmp/save/train_reward/testdesc-2601032319/reward_model/checkpoints/model.ckpt
+            print(f"checkpoint_dir: {checkpoint_dir}")  # /tmp/save/train_reward/testdesc-2601032319/reward_model/checkpoints/model.ckpt
 
             if not save_dir.startswith('gs://'):
                 os.makedirs(os.path.join(save_dir, 'reward_model'), exist_ok=True)
@@ -528,9 +526,7 @@ def train(hparams: HParams):
 
             @utils.graph_function()
             def sync_models():
-                """
-                在多进程训练中, 将rank0的参数广播到其他进程
-                这里同步ref_policy+reward_model的所有参数
+                """在多进程训练中, 将rank0的参数(ref_policy+reward_model)广播到其他进程
                 """
                 return utils.variable_synchronizer(
                     comm, 
@@ -542,6 +538,34 @@ def train(hparams: HParams):
         with utils.mpi_session() as sess:
             init_ops.run()          # 初始化变量
             sync_models()           # 同步参数到所有进程
+            
+            """"
+            before normalize: 2.9943370819091797 +- 5.407482767275378
+            targets: 0.0 +- 1.0
+            after normalize: 0.0600600391626358 +- 1.0499107722313563
+            0  training on  32  in batches of  8
+            debug. start_index: 0, step: 0
+            step=0, k=error, v=1.6052499
+            step=0, k=loss, v=1.6052499
+            debug. start_index: 8, step: 1
+            debug. start_index: 16, step: 2
+            debug. start_index: 24, step: 3
+            before normalize: 2.913266181945801 +- 5.167132534794791
+            targets: 0.0 +- 1.0
+            after normalize: 0.0677390843629837 +- 1.0126392887592668
+            """
             reward_trainer.train()  # 核心训练循环
+            
             if saver:               # 保存最终模型
                 saver.save(sess, checkpoint_dir)
+                """
+                (base) root@iZ0jlfyn5du7ptefx2tr5vZ:/tmp/save/train_reward/testdesc-2603052026/reward_model/checkpoints# du -sh *
+                4.0K    checkpoint
+                1.9G    model.ckpt.data-00000-of-00001
+                24K     model.ckpt.index
+                14M     model.ckpt.meta
+                
+                (base) root@iZ0jlfyn5du7ptefx2tr5vZ:/tmp/save/train_reward/testdesc-2603052026/reward_model/checkpoints# cat checkpoint 
+                model_checkpoint_path: "model.ckpt"
+                all_model_checkpoint_paths: "model.ckpt"
+                """

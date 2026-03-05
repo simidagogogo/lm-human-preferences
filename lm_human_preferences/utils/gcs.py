@@ -30,8 +30,11 @@ def exponential_backoff(
         jitter=0.2, 
         log_errors=True
     ):
-    """
-    Returns a decorator which retries the wrapped function as long as retry_on returns True for the exception.
+    """Returns a decorator which retries the wrapped function as long as retry_on returns True for the exception.
+    
+    这是一个非常实用且健壮的 “指数退避重试装饰器” (Exponential Backoff Retry Decorator)。
+    它的作用是：当一个函数抛出异常时，自动进行多次重试，而且每次重试的等待时间会指数级增加（例如：1秒 -> 2秒 -> 4秒...），直到成功或者达到最大重试次数。
+    这种机制在 网络请求、数据库连接、API 调用 等不稳定场景中非常关键，可以防止瞬间的高并发重试把服务端打挂。
 
     :param init_delay_s: How long to wait to do the first retry (in seconds).
     :param max_delay_s: At what duration to cap the retry interval at (in seconds).
