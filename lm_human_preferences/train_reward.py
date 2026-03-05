@@ -44,7 +44,7 @@ class LabelHParams(hyperparams.HParams):
 class RunHParams(hyperparams.HParams):
     seed: Optional[int] = None      # 随机种子
     log_interval: int = 10          # 日志频率
-    save_interval: int = 50         # 保存频率
+    save_interval: int = 50         # 保存频率(目前仅用于保存policy模型, 而非reward模型)
     save_dir: Optional[str] = None  # 保存目录
 
 
