@@ -21,10 +21,18 @@ warnings.filterwarnings("ignore", "Your application has authenticated using end 
 
 
 def exponential_backoff(
-        retry_on=lambda e: True, *, init_delay_s=1, max_delay_s=600, max_tries=30, factor=2.0,
-        jitter=0.2, log_errors=True):
+        retry_on=lambda e: True, 
+        *, 
+        init_delay_s=1, 
+        max_delay_s=600, 
+        max_tries=30, 
+        factor=2.0,
+        jitter=0.2, 
+        log_errors=True
+    ):
     """
     Returns a decorator which retries the wrapped function as long as retry_on returns True for the exception.
+
     :param init_delay_s: How long to wait to do the first retry (in seconds).
     :param max_delay_s: At what duration to cap the retry interval at (in seconds).
     :param max_tries: How many total attempts to perform.
@@ -59,7 +67,8 @@ def _gcs_should_retry_on(e):
 
 
 def parse_url(url):
-    """Given a gs:// path or https:// URL, returns bucket name and blob path."""
+    """Given a gs:// path or https:// URL, returns bucket name and blob path.
+    """
     result = urlparse(url)
     if result.scheme == 'gs':
         return result.netloc, unquote(result.path.lstrip('/'))
@@ -114,6 +123,10 @@ def upload_contents(url, contents, client=None):
 def download_directory_cached(url, comm=None):
     """ Given a GCS path url, caches the contents locally.
     WARNING: only use this function if contents under the path won't change!
+    
+    :param url: 
+    :param comm: 
+    :return: 
     """
     cache_dir = '/tmp/gcs-cache'
     bucket_name, path = parse_url(url)
@@ -135,8 +148,16 @@ def download_directory_cached(url, comm=None):
 
 
 def download_file_cached(url, comm=None):
-    """ Given a GCS path url or Azure Blob Storage URL, caches the contents locally.
+    """Given a GCS path url or Azure Blob Storage URL, caches the contents locally.
     WARNING: only use this function if contents under the path won't change!
+    
+    实现了一个支持多进程并发安全的文件下载与缓存函数。
+    它的主要应用场景是分布式训练（如使用 MPI 或 Horovod）。
+    在这种场景下，通常有多个进程（GPU）同时运行相同的代码。如果所有进程同时尝试下载同一个文件到同一个路径，会导致文件损坏（竞态条件）或浪费带宽。
+    这段代码通过“主进程下载，从进程等待”的模式解决了这个问题。
+    
+    :param url: https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/sentiment/offline_5k.json
+    :return: local_path
     """
     cache_dir = '/tmp/gcs-cache'
     bucket_name, path = parse_url(url)
@@ -157,8 +178,6 @@ def download_file_cached(url, comm=None):
             if not os.path.exists(local_path):
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
                 print(f'Downloading from Azure: {azure_url}')
-                # Downloading from Azure: https://openaipublic.blob.core.windows.net/lm-human-preferences/datasets/book_passages/train.jsonl
-                # Downloading from Azure: https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json
                 try:
                     response = requests.get(azure_url, stream=True, timeout=60)
                     response.raise_for_status()
@@ -167,17 +186,16 @@ def download_file_cached(url, comm=None):
                             f.write(chunk)
                     open(sentinel, 'a').close()
                     print(f'Downloaded to: {local_path}')
-                    # Downloaded to: /tmp/gcs-cache/azure/a998b81e63c85b3ae25af67f7592f1a5/offline_5k.json
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code == 404:
                         print(f'WARNING: File not found at {azure_url}')
                         print(f'This dataset may not be available. Creating placeholder file.')
-                        # 创建一个空文件作为占位符
+                        
+                        # 如果链接不存在(文件找不到), 则返回仅包含[]的文件
                         with open(local_path, 'w') as f:
                             f.write('[]')
                         open(sentinel, 'a').close()
                         print(f'Created placeholder at: {local_path}')
-                        # Created placeholder at: /tmp/gcs-cache/azure/5b26697d4ddef055367dcab663d508fb/train.jsonl
                     else:
                         raise
         else:

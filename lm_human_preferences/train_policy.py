@@ -107,7 +107,11 @@ def nupdates(hparams):
 
 
 def policy_frac(hparams):
-    """How far we are through policy training."""
+    """
+    How far we are through policy training.
+    :param hparams: 
+    :return 
+    """
     return tf.cast(tf.train.get_global_step(), tf.float32) / nupdates(hparams)
 
 
@@ -191,7 +195,7 @@ class PPOTrainer():
         负责设置训练所需的组件和超参数
         @policy:        当前训练的模型
         @ref_policy:    参考模型，通常是SFT后的模型，参数冻结
-        @query_sampler:
+        @query_sampler: dataset的数据管道
         @score_fn:      奖励函数
         @hparams:       超参数
         @comm:
@@ -215,6 +219,7 @@ class PPOTrainer():
 
         @utils.graph_function()
         def sample_queries():
+            """"""
             return query_sampler()['tokens']
         self.sample_queries = sample_queries
 
@@ -322,16 +327,19 @@ class PPOTrainer():
             for ppo_epoch_idx in range(hparams.ppo.noptepochs):
                 order = np.random.permutation(per_rank_rollout_batch_size)
                 for mb_start in range(0, per_rank_rollout_batch_size, per_rank_minibatch_size):
-                    mb_data = {k: v[order[mb_start:mb_start+per_rank_minibatch_size]]
-                               for k, v in rollouts.items()}
-
+                    mb_data = {
+                        k: v[order[mb_start:mb_start+per_rank_minibatch_size]]
+                        for k, v in rollouts.items()
+                    }
                     step = tf.train.get_global_step().eval()
-
                     _, stats = train_minibatch(mb_data)
                     stat_list.append(stats)
 
             # Collect the stats. (They will be averaged later.)
-            return {k: [s[k] for s in stat_list] for k in stat_list[0].keys()}
+            return {
+                k: [s[k] for s in stat_list] 
+                for k in stat_list[0].keys()
+            }
         self.train = train
 
         # NOTE: must line up with stats created in self.loss (TODO: better solution?)
@@ -397,7 +405,13 @@ class PPOTrainer():
             })
             if ppo_summary_writer:
                 record_op = utils.record_stats(
-                    stats=stats, summary_writer=ppo_summary_writer, step=step, log_interval=hparams.run.log_interval, name='ppo_stats', comm=self.comm)
+                    stats=stats, 
+                    summary_writer=ppo_summary_writer, 
+                    step=step, 
+                    log_interval=hparams.run.log_interval, 
+                    name='ppo_stats', 
+                    comm=self.comm
+                )
             else:
                 record_op = tf.no_op()
             return record_op, stats
@@ -437,10 +451,13 @@ class PPOTrainer():
         print(f"step_started_at: {step_started_at}, len(queries): {len(queries)}, queries: {queries}")
         
         # 模型根据Prompt生成回复, 得到logprobs
-        rollouts = self.policy.respond(queries, length=self.hparams.task.response_length)
+        rollouts = self.policy.respond(
+            queries, 
+            length=self.hparams.task.response_length
+        )
+        rollouts['queries'] = queries
         responses = rollouts['responses']
         logprobs = rollouts['logprobs']
-        rollouts['queries'] = queries
         
         # 2. 评估 (Reference & Score)
         # 让参考模型评估同一批回复，得到 ref_logprobs (参考概率)，用于计算 KL。
@@ -574,12 +591,13 @@ class PPOTrainer():
                 loss=dict(policy=pg_loss, value=vf_loss, total=loss),
                 policy=dict(entropy=entropy, approxkl=approxkl, clipfrac=pg_clipfrac),
                 returns=dict(mean=return_mean, var=return_var),
-                val=dict(vpred=tf.reduce_mean(vpred), 
-                         error=tf.reduce_mean((vpred - returns) ** 2),
-                         clipfrac=vf_clipfrac, 
-                         mean=value_mean, 
-                         var=value_var
-                    )
+                val=dict(
+                    vpred=tf.reduce_mean(vpred), 
+                    error=tf.reduce_mean((vpred - returns) ** 2),
+                    clipfrac=vf_clipfrac, 
+                    mean=value_mean, 
+                    var=value_var
+                )
             )
             return loss, utils.flatten_dict(stats, sep='/')
 
@@ -625,6 +643,8 @@ def make_score_fn(hparams, score_model):
 
 
 def train(hparams: HParams):
+    """ppo训练主流程
+    """
     save_dir = hparams.run.save_dir
     if hparams.rewards.train_new_model:
         assert hparams.task == hparams.rewards.train_new_model.task, f'{hparams.task} != {hparams.rewards.train_new_model.task}'
@@ -718,7 +738,10 @@ def train(hparams: HParams):
         @utils.graph_function()
         def sync_models():
             score_model.ensure_built()
-            return utils.variable_synchronizer(comm, vars=score_model.get_params() + ref_policy.get_params() + policy.get_params())
+            return utils.variable_synchronizer(
+                comm, 
+                vars=score_model.get_params() + ref_policy.get_params() + policy.get_params()
+            )
 
         init_ops = tf.group(
             tf.global_variables_initializer(),

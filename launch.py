@@ -32,42 +32,40 @@ books_task = combos(
 
 # 文本摘要配置 用于任务3
 summarize_cnndm_task = combos(
+    bind('query_length', 500),
+    bind('query_dataset', 'cnndm'),
+    bind('response_length', 75),
     bind('query_prefix', 'Article:\n\n'),
     bind('query_suffix', '\n\nTL;DR:'),
-    bind('end_text', '\n'),
-    bind('query_dataset', 'cnndm'),
-    bind('query_length', 500),
-    bind('response_length', 75),
     bind('start_text', None),
-    bind('truncate_after', 55),
+    bind('end_text', '\n'),
     bind('truncate_token', 198),  # '\n'
+    bind('truncate_after', 55),
     bind('policy.temperature', 0.5),
     bind('policy.initial_model', '124M'),
 )
 
 # TL;DR配置 用于任务4
 summarize_tldr_task = combos(
-    bind('query_suffix', '\n\nTL;DR:'),
-    bind('query_dataset', 'tldr'),
     bind('query_length', 500),
+    bind('query_dataset', 'tldr'),
+    bind('query_suffix', '\n\nTL;DR:'),
     bind('response_length', 75),
     bind('start_text', None),
-    bind('truncate_after', 55),
     bind('truncate_token', 198),  # '\n'
+    bind('truncate_after', 55),
     bind('policy.temperature', 0.7),
     bind('policy.initial_model', '124M'),
 )
 
 def get_train_reward_experiments():
-    """
-    reward模型训练配置
-    """
+    """reward模型训练配置"""
     _shared = combos(
-        bind('labels.type', 'best_of_4'),   # 
+        bind('labels.type', 'best_of_4'),   # 4个任务的reward模型的训练都是best_of_4
         bind('normalize_after', True),
         bind('normalize_before', True),
         bind('normalize_samples', 256),     # 从ref_policy模型中采样256条<query, response>样本对
-        bind('debug_normalize', 16),
+        bind('debug_normalize', 16),        # gian/bias归一化后的样本估计量
     )
 
     _books_task = combos(
@@ -82,7 +80,7 @@ def get_train_reward_experiments():
     sentiment = combos(
         _books_task,
         bind('labels.source', 'https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/sentiment/offline_5k.json'),
-        bind('labels.num_train', 32),
+        bind('labels.num_train', 4_992),
         bind('run.seed', 1)
     )
 
@@ -90,7 +88,7 @@ def get_train_reward_experiments():
     descriptiveness = combos(
         _books_task,
         bind('labels.source', 'https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json'),
-        bind('labels.num_train', 32),
+        bind('labels.num_train', 32),   # 一共拉取多少条训练样本
         bind('run.seed', 1)
     )
 
@@ -125,9 +123,7 @@ def get_train_reward_experiments():
 
 
 def get_experiments():
-    """
-    policy模型训练配置
-    """
+    """policy模型训练配置"""
     train_reward_experiments = get_train_reward_experiments()
 
     _books_task = combos(
@@ -194,10 +190,9 @@ def get_experiments():
     )
     return locals()
 
-# 训练策略模型
+
 def launch_train_policy(exp, name, dry_run=False, mpi=8, mode='local', save_dir='/tmp/save/train_policy', **extra_hparams):
-    """
-    训练policy模型
+    """训练policy模型
     """
     experiment_dict = get_experiments()
     try:
@@ -219,8 +214,7 @@ def launch_train_policy(exp, name, dry_run=False, mpi=8, mode='local', save_dir=
 
 
 def launch_train_reward(exp, name, dry_run=False, mpi=8, mode='local', save_dir='/tmp/save/train_reward', **extra_hparams):
-    """
-    训练reward模型
+    """训练reward模型
     """
     # print(f"debug. enter launch_train_reward(). exp: {exp}, name: {name}, mpi: {mpi}, mode: {mode}, dry_run: {dry_run}")
     experiment_dict = get_train_reward_experiments()

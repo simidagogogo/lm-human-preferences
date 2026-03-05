@@ -14,54 +14,63 @@ from lm_human_preferences.utils.core import Schema, pearson_r
 
 
 class LabelType(ABC):
-    """
-    ABC(Abstract Base Classes)
-    ABC用于定义 接口, 规定子类必须实现哪些方法, 且抽象类本身不能直接被实例化
-    
-    abstractmethod
-    ABC强制约束每个子类都实现abstractmethod
-    如果某个子类没有实现所有抽象方法, 那么该子类也仍然是ABC, 不能实例化
+    """ABC(Abstract Base Classes)
+    ABC用于定义接口, 规定子类必须实现哪些方法, 且抽象类本身不能直接被实例化
+    ABC强制约束每个子类都实现abstractmethod. 如果某个子类没有实现所有抽象方法, 那么该子类也仍然是ABC, 不能实例化
     """
     @abstractmethod
     def label_schemas(self) -> Dict[str, Schema]:
-        """
-        Schema for the human annotations.
+        """Schema for the human annotations.
         """
     
     @abstractmethod
     def question_schemas(self, *, query_length, response_length) -> Dict[str, Schema]:
-        """
-        Schema for the questions associated with this LabelType.
+        """Schema for the questions associated with this LabelType.
+        
+        :param query_length:
+        :param response_length:
+        :return: 
         """
 
     @abstractmethod
     def target_scales(self, labels: Dict[str, tf.Tensor]) -> Optional[tf.Tensor]:
-        """
-        label/目标值需要按某种尺度缩放或标准化(例如标量评分可能要做归一化)
-        Extracts scalars out of labels whose scale corresponds to the reward model's output.
+        """Extracts scalars out of labels whose scale corresponds to the reward model's output.
         May be none if the labels have no such information.
+        label/目标值需要按某种尺度缩放或标准化(例如标量评分可能要做归一化)
+        
+        :param labels:
+        :return: 
         """
 
     @abstractmethod
     def loss(self, reward_model, labels: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
-        """
-        loss
+        """拟合某种目标
+        
         :param labels: the questions with their labels
         :returns: a dict of stats, including 'loss' for the actual loss
         """
 
 
 class PickBest(LabelType):
-    """
-    Pick best response amongst N. Best-of-N选择
+    """Pick best response amongst N. Best-of-N选择
     """
     def __init__(self, num_responses):
         self.num_responses = num_responses
 
     def label_schemas(self) -> Dict[str, Schema]:
+        """
+        :param return: best
+        """
         return dict(best=Schema(tf.int32, ()))
 
     def question_schemas(self, *, query_length, response_length) -> Dict[str, Schema]:
+        """
+        :param query_length:
+        :param response_length:
+        :return: 
+            query: 问题
+            sample{i}: 候选回答
+        """
         return dict(
             query=Schema(tf.int32, (query_length,)),
             **{
@@ -74,6 +83,10 @@ class PickBest(LabelType):
         return None
 
     def loss(self, reward_model, labels) -> Dict[str, tf.Tensor]:
+        """拟合: 多分类问题
+        :param reward_model: 
+        :param lables: query, sample{i}, best
+        """
         # logits: 多分类logit向量, 每一行对应一个样本, 每一列对应一个候选回答得分. [batch_size, num_responses]
         logits = tf.stack(
             [reward_model(labels['query'], labels[f'sample{i}']) 
@@ -88,20 +101,28 @@ class PickBest(LabelType):
                 logits=logits
             )
         )
-        return dict(loss=error, error=error)
+        return dict(
+            loss=error, 
+            error=error
+        ) # 两个key: 分别是"loss"和""error"
 
 
 class ScalarRating(LabelType):
-    """
-    Rate a single number with a scalar score.
+    """Rate a single number with a scalar score.
     """
     def __init__(self):
         pass
 
     def label_schemas(self):
+        """
+        :return: score
+        """
         return dict(score=Schema(tf.float32, ()))
 
     def question_schemas(self, *, query_length, response_length) -> Dict[str, Schema]:
+        """
+        :return: query, sample
+        """
         return dict(
             query=Schema(tf.int32, (query_length,)),
             sample=Schema(tf.int32, (response_length,)),
@@ -111,9 +132,21 @@ class ScalarRating(LabelType):
         return labels['score']
 
     def loss(self, reward_model, labels):
+        """拟合人类对单条<query, sample>对的打分
+
+        :param reward_model: 
+        :param labels: 包括query, sample, score
+        :return: 5个key: 
+            loss: 
+            error:
+            label_mean:
+            label_var:
+            corr: 
+        """
         predicted = reward_model(labels['query'], labels['sample'])
         labels = labels['score']
         error = tf.reduce_mean((labels - predicted) ** 2, axis=0)
+        
         label_mean, label_var = tf.nn.moments(labels, axes=[0])
         corr = pearson_r(labels, predicted)
         return dict(
@@ -126,13 +159,21 @@ class ScalarRating(LabelType):
 
 
 class ScalarComparison(LabelType):
-    """
-    Give a scalar indicating difference between two responses.
+    """Give a scalar indicating difference between two responses.
     """
     def label_schemas(self):
+        """
+        :return: difference: 
+        """
         return dict(difference=Schema(tf.float32, ()))
 
     def question_schemas(self, *, query_length, response_length) -> Dict[str, Schema]:
+        """
+        :return:
+            query:
+            sample0:
+            sample1:
+        """
         return dict(
             query=Schema(tf.int32, (query_length,)),
             sample0=Schema(tf.int32, (response_length,)),
@@ -144,10 +185,13 @@ class ScalarComparison(LabelType):
         return labels['difference'] / 2
 
     def loss(self, reward_model, labels):
+        """拟合人类对两条比较样本的打分差值
+        :param labels: 包括query, sample{i}, difference
+        :return: loss, error
+        """
         outputs0 = reward_model(labels['query'], labels['sample0'])
         outputs1 = reward_model(labels['query'], labels['sample1'])
 
-        # 回归：拟合分数差
         # 让目标差值的方差 和 训练出来的reward model输出的方差对齐
         differences = labels['difference']
         predicted_differences = outputs1 - outputs0

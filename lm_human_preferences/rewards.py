@@ -14,20 +14,11 @@ from lm_human_preferences.utils.core import Schema
 
 
 class RewardModelWrapper:
+    """combine this with TrainedRewardModel
+    Reward Model 的封装器/推理器
     """
-    combine this with TrainedRewardModel
-    本质：这是一个 Reward Model 的封装器/推理器
-    """
-    def __init__(
-        self,
-        trained_model, 
-        *,
-        scope='reward_model', 
-        use_resource=False,
-        is_root=True,
-    ):
-        # 预训练模型(用于给reward模型迁移权重)
-        self.trained_model = trained_model
+    def __init__(self, trained_model, *, scope='reward_model', use_resource=False, is_root=True,):
+        self.trained_model = trained_model      # 预训练模型(用于给reward模型迁移权重)
         self.hparams = trained_model.hparams()
         self.is_root = is_root
         self.use_resource = use_resource
@@ -40,7 +31,7 @@ class RewardModelWrapper:
         self.model = model.Model(
             hparams=self.hparams, 
             scope=f'{scope}/model', 
-            scalar_heads=['reward']
+            scalar_heads=['reward'] # 替换为标量奖励头
         )
 
         self.built = False
@@ -56,12 +47,11 @@ class RewardModelWrapper:
         # 可逆分词器与编码器(ReversibleEncoder类的实例)
         return self.encoder
 
-
     def _build(self, tokens, do_dropout=False, name=None):
         """
         奖励模型前向传播, 预测奖励值
         @tokens: [batch_size, sequence_length]
-        return: value, shape; (batch_size, )
+        return: reward, shape; (batch_size, )
         """
         with tf.variable_scope(
             self.scope, 
@@ -104,8 +94,7 @@ class RewardModelWrapper:
             return reward
 
     def ensure_built(self):
-        """
-        如果已经build则直接返回, 否则运行一次模型推理后会将build改为True
+        """如果已经build则直接返回, 否则运行一次模型推理后会将build改为True
         """
         if self.built:
             return
@@ -114,15 +103,13 @@ class RewardModelWrapper:
             self._build(tokens=tf.zeros([0, 0], dtype=tf.int32))
 
     def get_params(self):
-        """
-        获取权重前, 必须确保已经build
+        """获取权重前, 必须确保已经build
         """
         self.ensure_built()
         return self.model.get_params() + [self.reward_gain, self.reward_bias]
 
     def reset_reward_scale(self):
-        """
-        重置奖励模型归一化参数gain, bias
+        """重置奖励模型归一化参数gain, bias
         """
         # 返回当前活跃的Session对象
         sess = tf.get_default_session()
@@ -135,8 +122,7 @@ class RewardModelWrapper:
         )
 
     def set_reward_norm(self, *, old_mean, old_std, new_mean, new_std):
-        """
-        Given old_mean+-old_std of reward_model, change gain and bias to get N(new_mean,new_std).
+        """Given old_mean+-old_std of reward_model, change gain and bias to get N(new_mean,new_std).
         """
         sess = tf.get_default_session()
         old_gain, old_bias = sess.run(
@@ -185,8 +171,7 @@ class RewardModelWrapper:
             self.trained_model.init_op(params, new_scope=self.scope)
 
     def get_rewards_op(self, queries, responses):
-        """
-        计算query+response的奖励值
+        """计算query+response的奖励值
         @queries:    shape为(rollout_batch_size, query_length)
         @response: : shape为(rollout_batch_size, response_length)
         return:      value, shape为(rollout_batch_size,)
@@ -200,14 +185,7 @@ class TrainedRewardModel():
     训练好的奖励模型, 从检查点加载权重. 仅用于train_policy中
     哪里修改build的状态?
     """
-    def __init__(
-        self, 
-        train_dir, 
-        encoding, 
-        *, 
-        scope='reward_model', 
-        comm=MPI.COMM_WORLD
-    ):
+    def __init__(self, train_dir, encoding, *, scope='reward_model', comm=MPI.COMM_WORLD):
         self.train_dir = train_dir
         self.comm = comm
         self.encoding = encoding
@@ -223,24 +201,21 @@ class TrainedRewardModel():
         self.encoder = encoder
         self.scope = scope
         
-        # reward模型
+        # reward模型, 从train_dir中加载权重
         self.model = model.Model(
             hparams=self.hparams, 
             scope=f'{scope}/model', 
             scalar_heads=['reward']
         )
 
-
     def _build(self, X):
-        """
-        奖励模型前向传播
+        """奖励模型前向传播
         :param X: 输入数据
         :return: reward score
         """
         results = self.model(X=X, padding_token=self.padding_token)
         reward = results['reward'][:, -1] # 
         
-        # 对奖励进行归一化
         with tf.variable_scope(f'{self.scope}/reward_norm'):
             self.reward_gain = tf.get_variable('gain', shape=(), initializer=tf.constant_initializer(1))
             self.reward_bias = tf.get_variable('bias', shape=(), initializer=tf.constant_initializer(0))
@@ -248,10 +223,8 @@ class TrainedRewardModel():
         self._set_initializers()
         return reward
 
-
     def ensure_built(self):
-        """
-        如果已经build则直接返回, 否则运行一次模型推理后会将build改为True
+        """如果已经build则直接返回, 否则运行一次模型推理后会将build改为True
         """
         if self.model.built:
             return
@@ -259,17 +232,14 @@ class TrainedRewardModel():
         with tf.name_scope('dummy'):
             self._build(X=tf.zeros([0,0], dtype=tf.int32))
 
-
     def _set_initializers(self):
-        """
-        Change initializers to load a model from a tensorflow checkpoint.
+        """Change initializers to load a model from a tensorflow checkpoint.
         Note: 必须完成build
         """
         if self.comm.Get_rank() > 0 or self.train_dir == 'test':
             return
 
         assert self.model.built
-
         checkpoint_scope = 'reward_model'
         with tf.init_scope():
             # Initialize!
@@ -291,13 +261,10 @@ class TrainedRewardModel():
                 unchanged[name] = var
             tf.train.init_from_checkpoint(checkpoint, unchanged)
 
-
     def get_params(self):
         return self.model.get_params() + [self.reward_gain, self.reward_bias]
 
-
     def score_fn(self, queries, responses):
-        """
-        """
+        """计算奖励得分"""
         tokens = tf.concat([queries, responses], axis=1)
         return self._build(tokens)

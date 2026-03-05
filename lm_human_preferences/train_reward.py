@@ -36,8 +36,8 @@ from lm_human_preferences.utils.core import Schema
 @dataclass
 class LabelHParams(hyperparams.HParams):
     type: str = None        # best_of_4
-    num_train: int = None   # 样本条数
-    source: str = None      # 数据源
+    num_train: int = None   # 样本条数, 形如4_992
+    source: str = None      # 数据源, 形如'https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/sentiment/offline_5k.json'
 
 
 @dataclass
@@ -83,6 +83,31 @@ def round_down_to_multiple(n, divisor):
 
 
 def download_labels(source, label_type, question_schemas, total_labels, comm):
+    """从url中下载人类标注的数据集, 用于训练reward模型
+    
+    :param source: https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json
+    :param label_type: 人类标注样本类型, label.type, 形如best_of_4
+    :param total_labels: 最大样本条数, label.num_train, 形如4_992
+    :param question_schemas: 
+    :param comm: 分布式通信
+    :return: 
+        dict{
+            'query': List[],
+            'sample0': List[],
+            'sample1': List[],
+            ...
+        }
+    """
+    
+    """
+    schemas: {
+    'query':   Schema(dtype=tf.int32, shape=(64,)), 
+    'sample0': Schema(dtype=tf.int32, shape=(24,)), 
+    'sample1': Schema(dtype=tf.int32, shape=(24,)), 
+    'sample2': Schema(dtype=tf.int32, shape=(24,)), 
+    'sample3': Schema(dtype=tf.int32, shape=(24,)), 
+    'best':    Schema(dtype=tf.int32, shape=())},
+    """
     schemas = {
         **question_schemas, 
         **label_type.label_schemas()
@@ -102,6 +127,7 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
 
     # TODO: download on just one rank?  then do: labels = utils.mpi_bcast_tensor_dict(labels, comm=comm)
     if source != 'test':
+        # 数据来自本地缓存
         with open(gcs.download_file_cached(source, comm=comm)) as f:
             results = json.load(f)
             print('Num labels found in source:', len(results)) # Num labels found in source: 6260
@@ -116,8 +142,10 @@ def download_labels(source, label_type, question_schemas, total_labels, comm):
 
     assert len(results) >= total_labels
     results = results[:total_labels]
+    # 类似于列变行
     return {
-        k: [a[k] for a in results] for k in schemas.keys()
+        k: [item[k] for item in results] 
+        for k in schemas.keys()
     }
 
 
@@ -129,16 +157,16 @@ class RewardModelTrainer():
         """
         @reward_model:  用于计算奖励得分
         @policy:        ref_policy, 用于自回归生成文本
-        @query_sampler: 从Dataset中采样prompts和labels
+        @query_sampler: 从Dataset中采样prompts
         """
-        self.reward_model = reward_model    # 带训练的奖励模型
-        self.policy = policy                # ref_policy
+        self.reward_model = reward_model    # 待训练的奖励模型
+        self.policy = policy                # ref_policy, reward模型训练过程中参数不会变化
         self.hparams = hparams
         self.num_ranks = comm.Get_size()
         self.rank = comm.Get_rank()
         self.comm = comm
 
-        self.label_type: LabelType = label_types.get(hparams.labels.type)
+        self.label_type = label_types.get(hparams.labels.type)
         self.question_schemas = self.label_type.question_schemas(
             query_length=hparams.task.query_length,
             response_length=hparams.task.response_length,
@@ -159,6 +187,7 @@ class RewardModelTrainer():
 
         with tf.device(None), tf.device('/cpu:0'):
             with tf.variable_scope('label_buffer', use_resource=True, initializer=tf.zeros_initializer):
+                # 数据来源为
                 self.train_buffer = utils.SampleBuffer(
                     capacity=hparams.labels.num_train, 
                     schemas=data_schemas
@@ -172,23 +201,28 @@ class RewardModelTrainer():
                 comm=comm
             )
 
-            @utils.graph_function(
-                indices=Schema(tf.int32, (None,)), 
-                lr=Schema(tf.float32, ())
-            )
+            @utils.graph_function(indices=Schema(tf.int32, (None,)), lr=Schema(tf.float32, ()))
             def train_batch(indices, lr):
-                """
-                @indices: batch_size条样本
-                @lr: 学习率
+                """定义单步训练函数(Training Step Function)
+                在一个深度学习训练循环中，这相当于执行了一次 sess.run(train_step)
+                它封装了数据读取、损失计算、反向传播（梯度下降）以及日志记录的全过程
+                
+                :param indices: 每个rank的训练样本, per_rank_batch_size=batch_size/num_ranks
+                :parm lr: 学习率
+                :return: 
                 """
                 with tf.name_scope('minibatch'):
+                    # 1. 从经验池中随机采样indices条训练样本
                     minibatch = self.train_buffer.read(indices)
-
-                    # 损失计算与优化
+                    
+                    # 2. 损失计算与优化
                     stats = self.label_type.loss(
                         reward_model=self.reward_model.get_rewards_op, 
                         labels=minibatch
                     )
+
+                    # 3. 更新reward_model权重. 
+                    # train_op是个操作节点. 只要运行它, 模型参数就会被更新一次
                     train_op = utils.minimize(
                         loss=stats['loss'], 
                         lr=lr, 
@@ -197,7 +231,9 @@ class RewardModelTrainer():
                         comm=self.comm
                     )
 
+                    # 4.训练步数与日志记录(Step & Logging)
                     with tf.control_dependencies([train_op]):
+                        # step_var全局计数器变量 train_step
                         step_var = tf.get_variable(
                             name='train_step', 
                             dtype=tf.int64, 
@@ -207,10 +243,7 @@ class RewardModelTrainer():
                         )
                         step = step_var.assign_add(1) - 1
                         stats = utils.FlatStats.from_dict(stats).map_flat(
-                            partial(
-                                utils.mpi_allreduce_mean, 
-                                comm=comm
-                            )
+                            partial(utils.mpi_allreduce_mean, comm=comm)
                         ).as_dict()
                         train_stat_op = utils.record_stats(
                             stats=stats, 
@@ -219,6 +252,14 @@ class RewardModelTrainer():
                             log_interval=hparams.run.log_interval, 
                             comm=comm
                         )
+                """
+                依赖链: 
+                    train_stat_op 依赖于日志记录操作。
+                    日志记录操作依赖于train_op(由 control_dependencies保证)
+                    train_op 依赖于loss 计算
+                    loss 计算依赖于minibatch读取
+                结论: 在Session中运行 sess.run(train_stat_op), 会触发整条链式反应, 完成一次完整的训练迭代
+                """
                 return train_stat_op
             self.train_batch = train_batch
 
@@ -257,6 +298,8 @@ class RewardModelTrainer():
             self.stats = stats
 
             def log_stats_after_normalize(stats):
+                """log stats after normalize.
+                """
                 if comm.Get_rank() != 0:
                     return
                 means, stds = stats
@@ -322,32 +365,30 @@ class RewardModelTrainer():
 
         @utils.graph_function(labels=utils.add_batch_dim(data_schemas))
         def add_to_buffer(labels):
+            """将训练样本添加到buffer"""
             return self.train_buffer.add(**labels)
         self.add_to_buffer = add_to_buffer
 
     def normalize(self, sample_fn, target_means, target_stds):
         """
-        归一化
+        归一化, 通过调整reward_model内部的gain和bias实现
         @sample_fn:     从ref_policy中采样<query, response>样本对的方法
         @target_means:  目标均值
         @target_stds:   目标方差
+        @return: 内部会改变gain和bias
         """
         if not self.hparams.normalize_samples:
             return
 
-        # 1. 重置reward_model的奖励归一化参数
+        # step1. 重置reward_model的奖励归一化参数
         self.reset_reward_scales()
         
-        # Step2: 从策略样本采样数据以估计统计量
+        # step2. 从策略样本采样数据以估计统计量
         query_responses = sample_fn(self.hparams.normalize_samples) # 256, len(query_responses)=256/64=4
         means, stds = self.stats(query_responses)
 
-        # Step 4: 调整归一化参数. 将当前分布 N(means, stds) 变换为 N(target_mean, target_std)
+        # step3. 调整归一化参数gain/bias, 将当前分布 N(means, stds) 变换为 N(target_mean, target_std)
         self.set_reward_norms(means, stds, target_means, target_stds)
-        # 计算新的 gain 和 bias:
-        # gain = target_std / old_std = 1.0 / 3.7 = 0.27
-        # bias = target_mean - gain * old_mean = 0 - 0.27 * 5.2 = -1.4
-
         if self.hparams.debug_normalize:
             query_responses = sample_fn(self.hparams.debug_normalize)
             stats = self.stats(query_responses)
@@ -355,8 +396,15 @@ class RewardModelTrainer():
 
     def train(self):
         """
+        标准训练流程
         """
-        # 下载标签数据（人类偏好标注）
+        # 1. 下载标签数据(人类偏好标注), 并添加到缓存区
+        # labels = dict{
+        #     'query': List[],
+        #     'sample0': List[],
+        #     'sample1': List[],
+        #     ...
+        # }
         labels = download_labels(
             self.hparams.labels.source,
             label_type=self.label_type,
@@ -364,32 +412,29 @@ class RewardModelTrainer():
             total_labels=self.hparams.labels.num_train,
             comm=self.comm
         )
-        # 添加到缓存区
         self.add_to_buffer(labels)
 
-        # 训练前归一化normalize_before
+        # 2. 训练前归一化normalize_before
         if self.hparams.normalize_before:
             target_mean, target_std = self.target_mean_std()
             self.normalize(self.sample_policy_responses, target_mean, target_std)
 
+        # 3. Train on train_indices
         # Collect training data for reward model training.  train_indices will include the indices
         # trained on across all ranks, and its size must be a multiple of minibatch_size.
         per_rank_batch_size = utils.exact_div(self.hparams.batch_size, self.num_ranks)
-
         # Make sure each rank gets the same shuffle so we train on each point exactly once
         train_indices = self.comm.bcast(np.random.permutation(self.hparams.labels.num_train))
-
-        # Train on train_indices
-        print(self.rank, "training on", self.hparams.labels.num_train, "in batches of", per_rank_batch_size)
-        # 批量训练
+        print(self.rank, " training on ", self.hparams.labels.num_train, " in batches of ", per_rank_batch_size)
         for start_index in range(0, self.hparams.labels.num_train, self.hparams.batch_size):
+            print(f"debug. start_index: {start_index}, step: {utils.exact_div(start_index, self.hparams.batch_size)}")
             end_index = start_index + self.hparams.batch_size
-            all_ranks_indices = train_indices[start_index:end_index]
-            our_indices = all_ranks_indices[self.rank::self.num_ranks]
-            lr = (1 - start_index / self.hparams.labels.num_train) * self.hparams.lr
+            all_ranks_indices = train_indices[start_index:end_index]    # 所有rank总共batch_size条训练数据
+            our_indices = all_ranks_indices[self.rank::self.num_ranks]  # 每个rank分到per_rank_batch_size条训练数据
+            lr = (1 - start_index / self.hparams.labels.num_train) * self.hparams.lr # 学习率线性衰减
             self.train_batch(our_indices, lr)
 
-        # 训练后归一化normalize_after
+        # 4. 训练后归一化normalize_after
         if self.hparams.normalize_after:
             target_mean, target_std = np.zeros([]), np.ones([])
             self.normalize(self.sample_policy_responses, target_mean, target_std)
@@ -474,16 +519,19 @@ def train(hparams: HParams):
             checkpoint_dir = None
 
         with utils.variables_on_gpu():
-            # tf.group()将多个操作组合成一个操作, 执行时会同时运行所有子操作. 这里用于同时更新两个归一化参数
+            # tf.group()将多个操作组合成单一操作, 执行时各个操作并行执行(这里用于同时更新两个归一化参数)
             init_ops = tf.group(
-                tf.global_variables_initializer(),
-                tf.local_variables_initializer(),
-                summary.summary_writer_initializer_op()
+                tf.global_variables_initializer(),      # 全局变量(权重和偏置)
+                tf.local_variables_initializer(),       # 局部变量(训练循环中用于内部计算的计数器等) 
+                summary.summary_writer_initializer_op() # 初始化TensorBoard摘要写入器(各种日志, 包括Loss曲线等)
             )
 
             @utils.graph_function()
             def sync_models():
-                """在多进程训练中，将 rank0的参数广播到其他进程"""
+                """
+                在多进程训练中, 将rank0的参数广播到其他进程
+                这里同步ref_policy+reward_model的所有参数
+                """
                 return utils.variable_synchronizer(
                     comm, 
                     vars=ref_policy.get_params() + reward_model.get_params()

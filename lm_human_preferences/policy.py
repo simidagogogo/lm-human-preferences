@@ -10,8 +10,7 @@ from lm_human_preferences.utils.core import Schema
 
 
 class Policy:
-    """
-    封装了Policy模型的高层接口, 专用于生成任务和RLHF
+    """封装了Policy模型的高层接口, 专用于生成任务和RLHF
     
     主要职责
     1)模型参数与scope管理
@@ -24,24 +23,19 @@ class Policy:
     2)RLHF流程中, 作为policy参与 采样响应 与 策略评估
     """
     def __init__(
-        self,
-        trained_model, 
-        *,
-        scope=None, 
-        use_resource=False,
-        embed_queries=lambda queries: queries,
-        temperature=1.0, 
-        is_root=True,
-        build_respond=True
+        self, trained_model,  *, scope=None, use_resource=False, 
+        embed_queries=lambda queries: queries, 
+        temperature=1.0, is_root=True, build_respond=True
     ):
         """
-        @trained_model: 已经训练好的模型对象, 封装了编码器、超参数、初始化等接口, 本身并不直接forward输入
-        @scope: 变量作用域名,控制变量的命名空间及共享
-        @use_resource: 是否用resource变量
-        @embed_queries: 对输入queries进行变换(默认不变), 一般会拼接前缀和后缀
-        @temperature: 采样温度,控制生成时的多样性(越大越随机)
-        @is_root: 是否为主节点,和参数初始化有关(分布式场景)
-        @build_respond: False表示该ref_policy只用于评估, 而非实际生成
+        :param trained_model: 已经训练好的模型对象, 封装了编码器、超参数、初始化等接口, 本身并不直接forward输入
+        :param scope: 变量作用域名,控制变量的命名空间及共享
+        :param use_resource: 是否用resource变量
+        :param embed_queries: 对输入queries进行变换(默认不变), 一般会拼接前缀和后缀
+        :param temperature: 采样温度,控制生成时的多样性(越大越随机)
+        :param is_root: 是否为主节点,和参数初始化有关(分布式场景)
+        :param build_respond: False表示该ref_policy只用于评估, 而非实际生成
+        :return: 
         """
         self.trained_model = trained_model
         self.model_hparams = trained_model.hparams()
@@ -76,13 +70,10 @@ class Policy:
             responses=Schema(tf.int32, (None, None)),
         )(self.analyze_responses_op)
 
-
     def get_encoder(self):
-        """
-        返回可逆分词器与编码器(ReversibleEncoder类的实例)
+        """返回可逆分词器与编码器(ReversibleEncoder类的实例)
         """
         return self.encoder
-
 
     def step_core(
         self, 
@@ -136,7 +127,6 @@ class Policy:
                     'presents': presents,
                 }
 
-
     def ensure_built(self):
         """
         保证计算图(及变量)已被build
@@ -145,7 +135,6 @@ class Policy:
         if not self.built:
             with tf.name_scope('dummy'):
                 self.step_core(self.model_hparams, tokens=tf.zeros([0, 0], dtype=tf.int32))
-
 
     def get_params(self):
         """
@@ -157,10 +146,8 @@ class Policy:
         assert len(params) > 0
         return params
 
-
     def _set_initializers(self):
-        """
-        Change initializers to load a language model from a tensorflow checkpoint.
+        """Change initializers to load a language model from a tensorflow checkpoint.
         """
         # Skip if
         # 1. We're not rank 0.  Values will be copied from there.
@@ -177,10 +164,8 @@ class Policy:
             params = {v.op.name: v for v in utils.find_trainable_variables(scope)}
             self.trained_model.init_op(params, new_scope=scope)
 
-
     def respond_op(self, queries, length):
-        """
-        按输入的queries和采样长度, 生成模型的输出文本序列. 常用于生成式任务
+        """按输入的queries和采样长度, 生成模型的输出文本序列. 常用于生成式任务
         @queries: 输入prompt
         @length: 采样长度
         """
@@ -202,7 +187,6 @@ class Policy:
             logprobs=result['logprobs'],                    # (batch_size, length)
             values=result['values'],                        # (batch_size, length)
         )
-
 
     def analyze_responses_op(self, queries, responses):
         """
