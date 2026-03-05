@@ -464,17 +464,7 @@ class Model:
         self.built = False
 
 
-    def __call__(
-        self, 
-        *, 
-        X, 
-        Y=None, 
-        past=None, 
-        past_tokens=None, 
-        mask=None,
-        padding_token: Optional[int]=None, 
-        do_dropout=False
-    ):
+    def __call__(self, *, X, Y=None, past=None, past_tokens=None, mask=None, padding_token: Optional[int]=None, do_dropout=False):
         """
         模型前向传播
         :param X: 输入tokens, [batch_size, sequnce_length]

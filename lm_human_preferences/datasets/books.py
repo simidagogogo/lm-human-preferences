@@ -20,6 +20,7 @@ def books_generator(mode, seed=0, shuffle=False, comm=None):
             f'https://openaipublic.blob.core.windows.net/lm-human-preferences/datasets/book_passages/{mode}.jsonl', 
             comm=comm
         )
+        # TODO: 为什么会进到这里?
         if os.path.getsize(file_path) == 0 or os.path.getsize(file_path) < 10:
             print(f'WARNING: Dataset file appears to be empty or placeholder. Using test data generator.')
             rnd.seed(seed)

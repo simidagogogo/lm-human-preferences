@@ -73,7 +73,7 @@ def get_train_reward_experiments():
     _books_task = combos(
         bind_nested('task', books_task),
         _shared,
-        bind('batch_size', 32),             # 训练奖励模型时的批次大小（用于梯度更新）
+        bind('batch_size', 8),             # 训练奖励模型时的批次大小（用于梯度更新）
         bind('lr', 5e-5),
         bind('rollout_batch_size', 512),    # 从策略模型采样响应时的批次大小(用于生成训练数据)
     )
@@ -82,7 +82,7 @@ def get_train_reward_experiments():
     sentiment = combos(
         _books_task,
         bind('labels.source', 'https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/sentiment/offline_5k.json'),
-        bind('labels.num_train', 4_992),
+        bind('labels.num_train', 32),
         bind('run.seed', 1)
     )
 

@@ -2,7 +2,6 @@ import hashlib
 import os
 import random
 import re
-
 import ftfy
 
 from lm_human_preferences.utils import gcs
@@ -79,11 +78,20 @@ def clean_up_start(text):
     return text.strip()
 
 def cnndm_generator(mode, seed=0, shuffle=False, comm=None):
+    """CNN/Daily Mail-摘要任务, 数据生成器
+    
+    :param mode: train/test
+    """
     # data originally from https://github.com/abisee/cnn-dailymail
     if mode == 'valid':
         mode = 'val'
-    with open(gcs.download_file_cached(f'https://openaipublic.blob.core.windows.net/lm-human-preferences/datasets/cnndm/url_lists/all_{mode}.txt', comm=comm)) as f:
+    
+    with open(gcs.download_file_cached(
+        f'https://openaipublic.blob.core.windows.net/lm-human-preferences/datasets/cnndm/url_lists/all_{mode}.txt', 
+        comm=comm
+    )) as f:
         urls = [line.strip() for line in f]
+    
     if shuffle:
         random.seed(seed)
         random.shuffle(urls)
@@ -100,6 +108,5 @@ def cnndm_generator(mode, seed=0, shuffle=False, comm=None):
 
         text = re.sub(r"\n{3,}", "\n\n", text)
         text = text.split('@highlight')[0].strip()
-        # TODO: text的内容是什么?
         yield text
         # _, ref_sents = get_art_abs(path)
