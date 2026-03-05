@@ -9,7 +9,6 @@ import os
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Optional
-from label_types import LabelType
 
 import numpy as np
 import tensorflow as tf

@@ -67,6 +67,7 @@ def get_train_reward_experiments():
         bind('normalize_after', True),
         bind('normalize_before', True),
         bind('normalize_samples', 256),     # 从ref_policy模型中采样256条<query, response>样本对
+        bind('debug_normalize', 16),
     )
 
     _books_task = combos(
