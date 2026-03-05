@@ -90,7 +90,7 @@ def get_train_reward_experiments():
     descriptiveness = combos(
         _books_task,
         bind('labels.source', 'https://openaipublic.blob.core.windows.net/lm-human-preferences/labels/descriptiveness/offline_5k.json'),
-        bind('labels.num_train', 4_992),
+        bind('labels.num_train', 32),
         bind('run.seed', 1)
     )
 
