@@ -107,8 +107,7 @@ def _our_gpu():
 
 
 def mpi_session_config():
-    """
-    Make a tf.ConfigProto to use only the GPU assigned to this MPI session.
+    """Make a tf.ConfigProto to use only the GPU assigned to this MPI session.
     """
     config = tf.ConfigProto()
     gpu = _our_gpu()
@@ -119,8 +118,7 @@ def mpi_session_config():
 
 
 def mpi_session():
-    """
-    Create a session using only the GPU assigned to this MPI process.
+    """Create a session using only the GPU assigned to this MPI process.
     """
     return tf.Session(config=mpi_session_config())
 

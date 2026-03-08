@@ -13,12 +13,13 @@ reward_experiment_name=testdesc-$(date +%y%m%d%H%M)
 pipenv run ./launch.py train_reward $experiment $reward_experiment_name --mpi 1
 
 # 2. train_policy
-# trained_reward_model=/tmp/save/train_reward/$reward_experiment_name
-# experiment=descriptiveness
-# policy_experiment_name=testdesc-$(date +%y%m%d%H%M)
-# pipenv run ./launch.py train_policy $experiment $policy_experiment_name  --mpi 1 \
-# --rewards.trained_model $trained_reward_model \
-# --rewards.train_new_model 'off'
+trained_reward_model=/tmp/save/train_reward/$reward_experiment_name
+experiment=descriptiveness
+policy_experiment_name=testdesc-$(date +%y%m%d%H%M)
+pipenv run ./launch.py train_policy $experiment $policy_experiment_name  \
+--mpi 1 \
+--rewards.trained_model $trained_reward_model \
+--rewards.train_new_model 'off'
 
 # 3. 同时运行两步
 # experiment=descriptiveness

@@ -472,7 +472,7 @@ def train(hparams: HParams):
         # 1. 创建模型封装器（第一个类）
         reward_model = rewards.RewardModelWrapper(m, is_root=comm.Get_rank() == 0)
         
-        # 负责生成训练用的prompt(queries)
+        # 负责生成训练用的prompt(queries, answers, labels)
         query_sampler = lm_tasks.make_query_sampler(
             hparams=hparams.task, 
             encoder=encoder, 

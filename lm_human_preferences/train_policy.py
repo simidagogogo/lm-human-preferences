@@ -35,25 +35,23 @@ from lm_human_preferences.utils.core import Schema
 @dataclass
 class AdaptiveKLParams(hyperparams.HParams):
     """
-    在强化学习策略优化PPO中, KL target可以约束新旧策略的偏离程度(防止策略更新过快或不稳定), horizon决定调整的周期
-    如果实际KL偏离目标太多, 则可以动态调整更新步长，保证训练稳定
+    在强化学习策略优化PPO中, KL target可以约束新旧policy的偏离程度(防止policy更新过快或不稳定), 
+    如果实际KL偏离目标KL太多, 则可以动态调整更新步长，保证训练稳定
     
     KL散度常用于衡量两个概率分布之间的“距离”.
-    在强化学习、变分自编码器或强化学习RLHF相关算法中, 经常要调整KL散度, 使其维持在某个目标水平, 以保持生成策略的多样性和与参考策略的距离合适
+    在强化学习、变分自编码器或强化学习RLHF相关算法中, 经常要调整当前KL散度, 使其维持在某个目标KL散度水平, 以保持生成policy的多样性和与ref_policy的距离合适
     """
-    target: float = None
-    horizon: int = 10000  # in episodes
+    target: float = None  # KL散度目标值(ref_policy的kl值)
+    horizon: int = 10000  # 调整周期
 
 
 @dataclass
 class RewardHParams(hyperparams.HParams):
-    """
-    奖励函数相关参数
-    """
-    kl_coef: float = 0.2                                    # KL散度系数，正则化奖励以避免策略与参考策略偏离过大
+    """reward函数相关参数"""
+    kl_coef: float = 0.2                                    # KL散度系数，正则化奖励以避免policy与ref_policy偏离过大
     adaptive_kl: Optional[AdaptiveKLParams] = None          # 自适应KL参数，可选；控制动态调整KL系数
     trained_model: Optional[str] = None                     # 训练模型的路径/标识(用于直接加载)
-    train_new_model: Optional[train_reward.HParams] = None  # 新模型的训练参数（若需重新训练）
+    train_new_model: Optional[train_reward.HParams] = None  # 新模型的训练参数(若需重新训练)
 
     def validate(self, *, prefix=''):
         """
@@ -68,8 +66,8 @@ class RewardHParams(hyperparams.HParams):
 @dataclass
 class PpoHParams(hyperparams.HParams):
     total_episodes: int = 2000000  # 总训练回合数（采集的数据总量），决定整体训练多充分
-    batch_size: int = 64           # 每个更新周期（epoch）的采样批次大小
-    nminibatches: int = 1          # 一个 batch 被分成几个mini batch进行多次梯度更新
+    batch_size: int = 64           # 批大小
+    nminibatches: int = 1          # 一个batch被分成几个minibatch进行多次梯度更新
     noptepochs: int = 4            # 每个 batch 被重复优化几次（epoch），即在同一数据上用策略优化器走多少遍
     lr: float = 5e-6               # 学习率，影响每一步参数调整的幅度
     vf_coef: float = .1            # Value函数（价值网络）损失的系数，在损失函数中占多大比重
@@ -77,7 +75,7 @@ class PpoHParams(hyperparams.HParams):
     cliprange_value: float = .2    # 价值网络更新的裁剪范围，防止value估值剧烈震荡
     gamma: float = 1               # 奖励的折扣因子，值越小越关注短期回报，越大越关注长远回报
     lam: float = 0.95              # 广义优势估计（GAE）的lambda值，权衡短期与长期优势
-    whiten_rewards: bool = True    # 是否对奖励进行标准化（归一化到均值为0、方差为1），有助于训练稳定
+    whiten_rewards: bool = True    # 是否对奖励进行标准化, 有助于训练稳定
 
 
 @dataclass
@@ -136,12 +134,11 @@ def tf_times():
 
 
 class FixedKLController:
-    """
-    固定KL系数控制器
-    固定KL惩罚项的权重系数, 从初始化到类的整个生命周期不变化, 不随训练动态调整
-    """
+    """固定KL系数控制器"""
     def __init__(self, kl_coef):
-        # 初始KLloss权重系数
+        """
+        :param kl_coef: 初始KLloss惩罚项权重系数, 从初始化到类的整个生命周期不变化(不随训练动态调整)
+        """
         self.value = kl_coef
 
     def update(self, current, n_steps):
@@ -149,56 +146,59 @@ class FixedKLController:
 
 
 class AdaptiveKLController:
-    """
-    自适应KL系数控制器
-    每隔一段时间调用update()以动态调整KL惩罚项的权重系数, 使训练时KL散度能够自动保持在一个合理的目标范围内, 从而兼顾模型的探索与稳定性
-    """
+    """自适应KL系数控制器"""
     def __init__(self, init_kl_coef, hparams):
-        self.value = init_kl_coef
+        """
+        :param init_kl_coef: kl系数初始值
+        :param hparams: 
+        """
+        self.value = init_kl_coef   
         self.hparams = hparams
 
     def update(self, current, n_steps):
+        """update方法在训练过程中定期被调用, 用于根据最近的KL散度动态调整惩罚权重, 
+        使训练时KL散度能够自动保持在一个合理的目标范围内, 从而兼顾模型的探索与稳定性
+
+        :param current: 当前步KL散度值
+        :param n_steps: 距离上次更新过去多少步
+        :return: KL惩罚项的权重系数动态值
         """
-        update方法在训练过程中定期被调用, 用于根据最近的KL散度动态调整惩罚权重
-        @current: 当前迭代步骤实际测量到的KL散度
-        @n_steps: 距离上次更新已过去多少训练步骤
-        """
-        target = self.hparams.target
+        target = self.hparams.target # 目标KL散度值
         
         # 计算当前KL与目标值之间的相对误差
         proportional_error = np.clip(current / target - 1, -0.2, 0.2)
         
         """
         这个式子决定KL系数该按怎样的比例调整。
-        如果当前KL > 目标KL, 则 proportional_error > 0, mult > 1, KL系数增大, 惩罚加重, 模型被拉回去
-        如果当前KL < 目标KL, 则 proportional_error < 0, mult < 1, KL系数减小, 惩罚变轻, 模型能自由探索
-        n_steps / horizon 控制调整的速度(步数多, 调整大)
+            如果当前KL > 目标KL, 则 proportional_error > 0, mult > 1, KL系数增大, 惩罚加重, 模型被拉回去(更稳定)
+            如果当前KL < 目标KL, 则 proportional_error < 0, mult < 1, KL系数减小, 惩罚变轻, 模型自由探索
+            n_steps / horizon 控制调整的速度(步数多, 调整大)
         """
         mult = 1 + proportional_error * n_steps / self.hparams.horizon
         self.value *= mult
 
 
 class PPOTrainer():
-    """
-    基于TF实现的PPO(Proximal Policy Optimization)训练器, 专门用于RLHF场景, 即利用强化学习微调语言模型
-    核心逻辑
-        Policy(当前模型)根据Query(提示词)生成Response(回复), 
-        然后通过Score Function(奖励模型)打分, 并结合与 Ref Policy(参考模型)的KL散度作为约束, 计算最终奖励
-        最后使用PPO算法更新模型参数
-        
-    这个类是一个标准的、工业级的PPO-RLHF训练器实现.
+    """一个标准的、工业级的PPO-RLHF训练器实现
     它处理了从数据采样、奖励计算、GAE广义优势估计到梯度更新的完整流程, 并包含了PPO算法特有的Clipping机制 和 KL惩罚机制, 
     以确保语言模型在微调过程中既能满足人类偏好(高Score), 又不会崩溃或遗忘原有的语言能力(低KL)
+
+    基于TF实现的PPO(Proximal Policy Optimization)训练器, 专门用于RLHF场景, 即利用强化学习微调语言模型
+    核心逻辑
+        1. Policy(待训练模型)根据Query生成Response,
+        2. <Query, Response>对通过Score Function打分, 并结合与Ref Policy(参考模型)的KL散度作为约束, 计算最终奖励
+        3. 使用PPO算法更新模型参数
     """
     def __init__(self, *, policy, ref_policy, query_sampler, score_fn, hparams, comm):
-        """
-        负责设置训练所需的组件和超参数
-        @policy:        当前训练的模型
-        @ref_policy:    参考模型，通常是SFT后的模型，参数冻结
-        @query_sampler: dataset的数据管道
-        @score_fn:      奖励函数
-        @hparams:       超参数
-        @comm:
+        """负责设置训练所需的组件和超参数
+
+        :param policy:        当前训练的模型, 权重更新
+        :param ref_policy:    参考模型(通常是SFT后的模型), 参数冻结
+        :param query_sampler: dataset的数据管道
+        :param score_fn:      reward函数
+        :param hparams:       超参数
+        :param comm:          分布式通信
+        :return: 
         """
         self.comm = comm
         self.policy = policy
@@ -206,7 +206,6 @@ class PPOTrainer():
         self.score_fn = score_fn
         self.hparams = hparams
 
-        # KL控制器kl_ctl. 控制模型不要偏离参考模型太远
         if hparams.rewards.adaptive_kl is None:
             self.kl_ctl = FixedKLController(hparams.rewards.kl_coef)
         else:
@@ -214,72 +213,62 @@ class PPOTrainer():
                 hparams.rewards.kl_coef, 
                 hparams=hparams.rewards.adaptive_kl
             )
-        response_length = hparams.task.response_length
+
         query_length = hparams.task.query_length
+        response_length = hparams.task.response_length
 
         @utils.graph_function()
         def sample_queries():
-            """"""
+            """从dataset数据管道采样(Queries, responses, labels)"""
             return query_sampler()['tokens']
         self.sample_queries = sample_queries
 
         def compute_rewards(scores, logprobs, ref_logprobs):
-            """
-            计算每一步的最终奖励和KL惩罚项.
-            在RLHF经常会用奖励模型得分Scores和KL惩罚共同构成最终奖励, 引导生成模型“既符合人类偏好, 又不偏离原分布太远”
-            
-            @scores: 奖励模型得分（通常 shape是 [batch_size, 1] 或 [batch_size]，代表每个样本给出的 scalar 评分）
-            @logprobs: 主模型生成每一步token的对数概率（可以是 [batch_size, seq_len] 的二维数组）
-            @ref_logprobs: 参考模型（通常是未微调的原始模型）的每一步token对数概率（shape同上）
-            
-            
+            """计算每一步的最终奖励和KL惩罚项.
             该函数复合了惩罚生成模型与参考模型分布差异的KL损失，并在句末加上奖励模型得分，形成序列级的 RLHF 奖励结构。
-            奖励分布体现出：鼓励模型别脱离“祖宗”（参考lm），但也要得到高人类指令得分。
-            KL系数(self.kl_ctl.value)可根据训练状态动态调节（见之前 AdaptiveKLController）。
-            
+            在RLHF经常会用奖励得分Scores和KL惩罚共同构成最终奖励, 引导policy模型既符合人类偏好, 又不偏离原分布太远(鼓励模型别脱离祖宗但也要得到高人类指令得分)
             可视化流程
-            1.每步奖励 = -KL惩罚 （全部步骤都有）
-            2.句末加奖励 = 上述 + scores
-            3.最终奖励：除句末外各步只有惩罚，句末有奖励+惩罚。
+                1.每步惩罚 = -KL惩罚 （全部步骤都有）
+                2.句末加奖励 = 上述 + scores
+                3.最终奖励：除句末外各步只有惩罚，句末有奖励+惩罚
+            :param scores:       奖励模型得分. shape[batch_size, 1]或[batch_size]
+            :param logprobs:     policy模型生成每一步token的对数概率, [batch_size, seq_len]
+            :param ref_logprobs: ref_policy每一步token对数概率, [batch_size, seq_len]
+            :return: 
+                rewards: 最终奖励(shape[batch_size, seq_len]), 包含KL惩罚项和在句末位置加上的奖励分数
+                non_score_reward: 纯粹的KL惩罚项
+                self.kl_ctl.value: 当前KL系数值, 方便后续追踪自适应效果            
             """
-            
             """
-            计算KL散度项：
-            理论上我们用 KL(P‖Q)=E_P[log P(x) - log Q(x)]
-            其中，P(x)：当前模型生成的概率，Q(x)：参考模型生成的概率
-            这里直接用每一步 log 概率的差做近似（与序数、长度无关，通常会逐步累加），结果 shape 为 [batch_size, seq_len]
-            本质上，这就是对每个 token，“主模型偏离参考模型的幅度”；数值越大，偏离越大。            
+            计算KL散度项:
+            理论上我们用 KL(P‖Q)=E_P[logP(x)-logQ(x)]
+            P(x): 当前policy生成概率
+            Q(x): ref_policy生成概率
+            这里直接用每一步log概率的差做近似(与序数、长度无关, 通常会逐步累加), 结果shape为[batch_size, seq_len]
+            本质是对每个token主模型偏离参考模型的幅度. 数值越大, 偏离越大            
             """
             kl = logprobs - ref_logprobs
             
             """
-            计算非评分奖励（KL惩罚项）：
-            self.kl_ctl.value 是 KL 惩罚项的当前系数（通常会自适应调整）
+            计算KL惩罚项:
+            self.kl_ctl.value 是 KL 惩罚项的当前系数
             -self.kl_ctl.value * kl 意味着：
-            如果主模型偏离参考模型（kl为正），就有负奖励（惩罚）
-            如果主模型更靠近参考（kl为负），则奖励或惩罚减少
-            non_score_reward 形状为 [batch_size, seq_len]
+            如果主模型偏离参考模型(kl为正), 就有负奖励(惩罚);如果主模型更靠近参考则奖励或惩罚减少
+            non_score_reward形状为[batch_size, seq_len]
             """
             non_score_reward = -self.kl_ctl.value * kl
             
             """
-            将奖励分配到最后一个 token（或序列末尾）：
+            将奖励分配到最后一个token(或序列末尾):
             1.rewards = non_score_reward.copy()
                 先准备一份“全部是KL惩罚项的奖励”
             2.rewards[:, -1] += scores
-                对每个样本的“最后一个 token”（即 [:, -1]），额外加上奖励模型得分（scores）
-                这样做的目的是：只有最后一个位置/整句才获得奖励模型的反馈，其余token仅有KL惩罚值
+                对每个样本的最后一个token额外加上奖励模型得分(scores)
+                这样做的目的是: 只有最后一个位置/整句才获得奖励模型的反馈, 其余token仅有KL惩罚值
                 常见于序列奖励场景，避免提前泄漏奖励
             """
             rewards = non_score_reward.copy()
             rewards[:, -1] += scores
-            
-            """
-            rewards：最终的奖励（shape：[batch_size, seq_len]）
-                包含KL惩罚项和在句末位置加上的奖励分数
-            non_score_reward：纯粹的KL惩罚项
-            self.kl_ctl.value：当前KL系数值，方便后续追踪自适应效果
-            """
             return rewards, non_score_reward, self.kl_ctl.value
         self.compute_rewards = compute_rewards
 
@@ -297,8 +286,7 @@ class PPOTrainer():
 
 
         def train_minibatch(rollouts):
-            """
-            One step of PPO training.
+            """One step of PPO training.
             """
             left = 1 - policy_frac(hparams)
             lrnow = hparams.ppo.lr * left
@@ -646,10 +634,13 @@ def train(hparams: HParams):
     """ppo训练主流程
     """
     save_dir = hparams.run.save_dir
+
+    # 是否需要重新训练reward模型
     if hparams.rewards.train_new_model:
         assert hparams.task == hparams.rewards.train_new_model.task, f'{hparams.task} != {hparams.rewards.train_new_model.task}'
         hparams.rewards.train_new_model.run.save_dir = save_dir
         train_reward.train(hparams.rewards.train_new_model)
+        
         if 'pytest' in sys.modules:
             hparams.rewards.trained_model = 'test'
         elif save_dir:
@@ -659,31 +650,32 @@ def train(hparams: HParams):
 
     with tf.Graph().as_default():
         hyperparams.dump(hparams)
+        utils.set_mpi_seed(hparams.run.seed)
 
         m = trained_models.TrainedModel(hparams.task.policy.initial_model)
-        encoder = m.encoding.get_encoder()
+        encoder = m.encoding.get_encoder() # ReversibleEncoder类的实例
+
+        # Model parameters
         hyperparams.dump(m.hparams(), name='model_hparams')
 
         if save_dir:
             if not save_dir.startswith('https:'):
                 os.makedirs(os.path.join(save_dir, 'policy'), exist_ok=True)
+            
             with tf.gfile.Open(os.path.join(save_dir, 'train_policy_hparams.json'), 'w') as f:
                 json.dump(hparams.to_nested_dict(), f, indent=2)
+            
             with tf.gfile.Open(os.path.join(save_dir, 'policy', 'hparams.json'), 'w') as f:
                 json.dump(m.hparams().to_nested_dict(), f, indent=2)
+            
             with tf.gfile.Open(os.path.join(save_dir, 'policy', 'encoding'), 'w') as f:
                 json.dump(m.encoding.name, f, indent=2)
 
-        utils.set_mpi_seed(hparams.run.seed)
-        
-        # 从检查点加载的已完成训练的reward模型
-        score_model = TrainedRewardModel(
-            hparams.rewards.trained_model, 
-            m.encoding, 
-            comm=comm
-        )
+        # 加载已完成训练reward模型
+        score_model = TrainedRewardModel(hparams.rewards.trained_model, m.encoding, comm=comm)
 
         # 基线策略
+        # 主要用于生成候选和对候选计算各类指标(logprob、熵、价值等)
         ref_policy = Policy(
             m, 
             scope='ref_policy',
@@ -703,6 +695,7 @@ def train(hparams: HParams):
             build_respond=True
         )
 
+        # 负责生成训练用的prompt(queries, answers, labels)
         query_sampler = lm_tasks.make_query_sampler(
             hparams=hparams.task, 
             encoder=encoder, 
